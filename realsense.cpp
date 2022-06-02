@@ -54,7 +54,7 @@ void RealsenseWorker::stop()
     m_isRunning = false;
 }
 
-pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processDepthFrame(std::unique_ptr<rs2::depth_frame> depth_frame) const
+pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::rsDepthFrameToPCLCloud(std::unique_ptr<rs2::depth_frame> depth_frame) const
 {
     rs2::pointcloud pc;
     rs2::points points = pc.calculate(*depth_frame);
@@ -77,9 +77,29 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processDepthFrame(std::uniq
         p.z = ptr->z;
     }
 
+    return pclCloud;
+}
+
+void RealsenseWorker::projectPointsToImage(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud, QImage *image) const
+{
+    QPainter painter(image);
+    painter.setPen(Qt::green);
+    for (auto point : pclCloud->points)
+    {
+        float pix[2];
+        float p[] = {point.x, point.y, point.z};
+        const rs2_intrinsics intrin = *intrinsics;
+        rs2_project_point_to_pixel(pix, &intrin, p);
+        painter.drawPoint((int)std::round(pix[0]), (int)std::round(pix[1]));
+    }
+}
+
+pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud) const
+{
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cropped(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_downsampled(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_processed(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr groundPlaneCloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::CropBox<pcl::PointXYZ> cropBox;
     pcl::VoxelGrid<pcl::PointXYZ> downsample;
 
@@ -99,7 +119,6 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processDepthFrame(std::uniq
     // detect ground plane using ransac and perpendicular plane model
     pcl::SampleConsensusModelPerpendicularPlane<pcl::PointXYZ>::Ptr groundPlaneModel(new pcl::SampleConsensusModelPerpendicularPlane<pcl::PointXYZ>(cloud_downsampled));
     pcl::RandomSampleConsensus<pcl::PointXYZ> groundPlaneRansac(groundPlaneModel);
-    pcl::PointCloud<pcl::PointXYZ>::Ptr groundPlaneCloud(new pcl::PointCloud<pcl::PointXYZ>);
     std::vector<int> groundPlaneInliers;
     groundPlaneModel->setAxis(Eigen::Vector3f(0.0,-1.0,0.0));
     groundPlaneModel->setEpsAngle(pointcloudoptions.ransac_angle_max * M_PI / 180.0);
@@ -110,6 +129,18 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processDepthFrame(std::uniq
     {
         groundPlaneRansac.getInliers(groundPlaneInliers);
         pcl::copyPointCloud(*cloud_downsampled, groundPlaneInliers, *groundPlaneCloud);
+
+        Eigen::VectorXf groundPlaneCoefficientsRaw;
+        groundPlaneRansac.getModelCoefficients(groundPlaneCoefficientsRaw);
+        if (groundPlaneCoefficientsRaw.w() < 0)
+        {
+            groundPlaneCoefficientsRaw = -groundPlaneCoefficientsRaw;
+        }
+
+        // moving average of plane equation
+        *groundPlaneCoefficients = (Eigen::Vector4f)(groundPlaneCoefficientsRaw.head<4>() * pointcloudoptions.ma_alpha + *groundPlaneCoefficients*(1.0F-pointcloudoptions.ma_alpha));
+
+
     }
 
     return groundPlaneCloud;
@@ -126,11 +157,8 @@ void RealsenseWorker::run()
     auto sensor = pipe_profile.get_device().first<rs2::depth_sensor>();
     sensor.set_option(RS2_OPTION_VISUAL_PRESET, RS2_RS400_VISUAL_PRESET_HIGH_ACCURACY);
     auto depth_stream = pipe_profile.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
-    auto intrinsics = depth_stream.get_intrinsics();
-    std::vector<std::vector<double>> mat{{intrinsics.fx, 0, intrinsics.ppx},
-                                         {0, intrinsics.fy, intrinsics.ppy},
-                                         {0, 0, 1}};
-    intrinsic_matrix = mat;
+    *intrinsics = depth_stream.get_intrinsics();
+
     while (m_isRunning)
     {
         frames = pipe.wait_for_frames();
@@ -138,13 +166,15 @@ void RealsenseWorker::run()
         auto color_frame = frames.get_color_frame();
         auto depth_frame = frames.get_depth_frame();
 
-        processDepthFrame(std::make_unique<rs2::depth_frame>(depth_frame));
-
         auto vf = color_frame.as<rs2::video_frame>();
         if (color_frame.get_profile().format() == RS2_FORMAT_RGB8)
         {
-            colorImage = QImage((uchar *)color_frame.get_data(), m_width, m_height, m_width * 3, QImage::Format_RGB888);
+            *colorImage = QImage((uchar *)color_frame.get_data(), m_width, m_height, m_width * 3, QImage::Format_RGB888);
         }
+        auto pclCloud = rsDepthFrameToPCLCloud(std::make_unique<rs2::depth_frame>(depth_frame));
+        auto gpc = processPointcloud(pclCloud);
+        projectPointsToImage(gpc, colorImage);
+
         emit colorImageReady();
     }
     qDebug() << "Stopping Realsense";
@@ -156,5 +186,5 @@ QImage RealsenseWorker::requestImage(const QString &id, QSize *size, const QSize
 {
     if (size) *size = QSize(m_width, m_height);
 
-    return colorImage;
+    return *colorImage;
 }

@@ -3,6 +3,8 @@
 
 #include <QObject>
 #include <QImage>
+#include <QPixmap>
+#include <QPainter>
 #include <QQuickImageProvider>
 #include <QDebug>
 #include <QThread>
@@ -15,6 +17,43 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/sample_consensus/ransac.h>
 #include <pcl/sample_consensus/sac_model_perpendicular_plane.h>
+
+#include <Eigen/Core>
+
+struct PointcloudOptions
+{
+    //Q_GADGET
+    bool enable_processing = true;
+    bool filter_x = true;
+    float x_min = -5.5F / 2.0F;
+    float x_max = 5.5F / 2.0F;
+    bool filter_y = true;
+    float y_min = 0.5F;
+    float y_max = 4.5F;
+    bool filter_z = true;
+    float z_min = 0.2F;
+    float z_max = 20.0F;
+    float voxel_size = 0.01F;
+    float ransac_threshold = 0.05F;
+    float ransac_angle_max = 20.0F;
+    int ransac_iterations = 1000;
+    float ma_alpha = 0.1F;
+    /*Q_PROPERTY(bool enable_processing MEMBER enable_processing)
+    Q_PROPERTY(bool filter_x MEMBER filter_x)
+    Q_PROPERTY(float x_min MEMBER x_min)
+    Q_PROPERTY(float x_max MEMBER x_max)
+    Q_PROPERTY(bool filter_y MEMBER filter_y)
+    Q_PROPERTY(float y_min MEMBER y_min)
+    Q_PROPERTY(float y_max MEMBER y_max)
+    Q_PROPERTY(bool filter_z MEMBER filter_z)
+    Q_PROPERTY(float z_min MEMBER z_min)
+    Q_PROPERTY(float z_max MEMBER z_max)
+    Q_PROPERTY(float voxel_size MEMBER voxel_size)
+    Q_PROPERTY(float ransac_threshold MEMBER ransac_threshold)
+    Q_PROPERTY(float ransac_angle_max MEMBER ransac_angle_max)
+    Q_PROPERTY(int ransac_iterations MEMBER ransac_iterations)
+    Q_PROPERTY(float ma_alpha MEMBER ma_alpha)*/
+};
 
 class RealsenseWorker : public QThread, public QQuickImageProvider
 {
@@ -71,27 +110,16 @@ private:
     int m_height;
     std::vector<std::vector<double>> intrinsic_matrix;
     bool m_isRunning;
-    QImage colorImage = QPixmap(1280, 720).toImage();
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr processDepthFrame(std::unique_ptr<rs2::depth_frame> depth_frame) const;
-    struct PointcloudOptions
-    {
-        bool enable_processing = true;
-        bool filter_x = true;
-        float x_min = -5.5F/2.0F;
-        float x_max = 5.5F/2.0F;
-        bool filter_y = true;
-        float y_min = 0.5F;
-        float y_max = 4.5F;
-        bool filter_z = true;
-        float z_min = 0.2F;
-        float z_max = 20.0F;
-        float voxel_size = 0.01F;
-        float ransac_threshold = 0.05F;
-        float ransac_angle_max = 20.0F;
-        int ransac_iterations = 1000;
-        float ma_alpha = 0.1F;
-    }; PointcloudOptions pointcloudoptions;
+    QImage *colorImage = new QImage(1280, 720, QImage::Format_RGB888);
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr rsDepthFrameToPCLCloud(std::unique_ptr<rs2::depth_frame> depth_frame) const;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr processPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr) const;
+    void projectPointsToImage(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud, QImage *image) const;
+
+    std::shared_ptr<Eigen::Vector4f> groundPlaneCoefficients = std::make_shared<Eigen::Vector4f>(0, 0, 0, 0);
+    std::shared_ptr<rs2_intrinsics> intrinsics = std::make_shared<rs2_intrinsics>();
+    PointcloudOptions pointcloudoptions;
 };
 
 #endif // REALSENSE_H
