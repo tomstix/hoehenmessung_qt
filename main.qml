@@ -9,8 +9,18 @@ Window {
     height: 720
     visible: true
     title: qsTr("Realsense Height Measurement")
+    onClosing: Realsense.stop()
 
     property var statusBarSize: 150
+
+    Connections {
+        target: Realsense
+        function onIsRunningChanged() {
+            resolutionSelector.enabled = !Realsense.running
+            startButton.enabled = !Realsense.running
+            stopButton.enabled = Realsense.running
+        }
+    }
 
     GridLayout {
         anchors.fill: parent
@@ -22,6 +32,7 @@ Window {
             Layout.preferredWidth: statusBarSize
             ComboBox {
                 id: resolutionSelector
+                enabled: !Realsense.running
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillWidth: true
                 currentIndex: 4
@@ -36,6 +47,7 @@ Window {
                 onCurrentIndexChanged: Realsense.resolution = currentIndex
             }
             Button {
+                id: startButton
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillWidth: true
                 text: "Start"
@@ -44,12 +56,14 @@ Window {
                 }
             }
             Button {
+                id: stopButton
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillWidth: true
                 text: "Stop"
                 onClicked: {
                     Realsense.stop()
                 }
+                Component.onCompleted: enabled = false
             }
             Label {
                 Layout.alignment: Qt.AlignHCenter
@@ -71,6 +85,7 @@ Window {
                     counter = counter + 1
                 }
                 function onResolutionChanged() {
+                    image.source = "image://color"
                     image.fillMode = Image.PreserveAspectFit
                     mainWindow.height = Realsense.height
                     mainWindow.width = Realsense.width + statusBarSize
