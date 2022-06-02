@@ -1,52 +1,85 @@
 import QtQuick 2.15
 import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
-import Realsense 1.0
+import QtQuick.Layouts 1.15
 
 Window {
-    Realsense {
-        id: rs
-        }
-
-    Connections {
-    }
-    width: 640
-    height: 480
+    id: mainWindow
+    width: 1280
+    height: 720
     visible: true
     title: qsTr("Realsense Height Measurement")
 
-    Column {
-        ComboBox {
-            id: resolutionSelector
-            currentIndex: 4
-            model: ListModel {
-                ListElement {text: "424x240"}
-                ListElement {text: "480x270"}
-                ListElement {text: "640x360"}
-                ListElement {text: "640x480"}
-                ListElement {text: "1280x720"}
-                ListElement {text: "1280x800"}
+    property var statusBarSize: 150
+
+    GridLayout {
+        anchors.fill: parent
+        id: mainGrid
+        rows: 1
+        columns: 2
+        ColumnLayout {
+            id: controlLayout
+            Layout.preferredWidth: statusBarSize
+            ComboBox {
+                id: resolutionSelector
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                currentIndex: 4
+                model: ListModel {
+                    ListElement {text: "424x240"}
+                    ListElement {text: "480x270"}
+                    ListElement {text: "640x360"}
+                    ListElement {text: "640x480"}
+                    ListElement {text: "1280x720"}
+                }
+                Component.onCompleted: Realsense.resolution = currentIndex
+                onCurrentIndexChanged: Realsense.resolution = currentIndex
             }
-            Component.onCompleted: rs.resolution = currentIndex
-            onCurrentIndexChanged: rs.resolution = currentIndex
-        }
-        Button {
-            text: "Start"
-            onClicked: {
-                rs.start()
+            Button {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                text: "Start"
+                onClicked: {
+                    Realsense.start()
+                }
+            }
+            Button {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                text: "Stop"
+                onClicked: {
+                    Realsense.stop()
+                }
+            }
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                property string textc: "Nothing received yet"
+                id: label
+                text: textc
             }
         }
-        Button {
-            text: "Stop"
-            onClicked: {
-                rs.stop()
+
+        Image {
+            id: image
+            source: "image://color"
+            Connections {
+                target: Realsense
+                property int counter
+                function onColorImageReady() {
+                    image.source = "image://color/" + counter
+                    counter = counter + 1
+                }
+                function onResolutionChanged() {
+                    image.fillMode = Image.PreserveAspectFit
+                    mainWindow.height = Realsense.height
+                    mainWindow.width = Realsense.width + statusBarSize
+                }
             }
-        }
-        Label {
-            property var textc: "Nothing received yet"
-            
-            id: label
-            text: textc
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.preferredWidth: sourceSize.width
+            Layout.preferredHeight: sourceSize.height
         }
     }
 }
