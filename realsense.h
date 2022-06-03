@@ -67,6 +67,7 @@ class RealsenseWorker : public QThread, public QQuickImageProvider
     Q_PROPERTY(PointcloudOptions pointcloudoptions READ getPointcloudoptions WRITE setPointcloudoptions NOTIFY pointcloudoptionsChanged)
     Q_PROPERTY(float distanceRaw READ distanceRaw NOTIFY newFrameReady)
     Q_PROPERTY(int frameTime READ frameTime NOTIFY frameTimeChanged)
+    Q_PROPERTY(bool useExtrinsics MEMBER useExtrinsics NOTIFY useExtrinsicsChanged)
 
 public:
     RealsenseWorker() : QQuickImageProvider(QQuickImageProvider::Image)
@@ -108,6 +109,7 @@ public:
 
 public slots:
     void stop();
+    void tare();
 
 signals:
     void heightChanged(const int h);
@@ -118,6 +120,7 @@ signals:
     void statusStringChanged();
     void pointcloudoptionsChanged();
     void frameTimeChanged();
+    void useExtrinsicsChanged();
 
 protected:
     void run() override;
@@ -131,6 +134,10 @@ private:
     int m_height;
     std::vector<std::vector<double>> intrinsic_matrix;
     bool m_isRunning;
+
+    rs2_extrinsics *extrinsics = new rs2_extrinsics;
+    bool tared = false;
+    bool useExtrinsics = false;
 
     QImage *colorImage = new QImage(1280, 720, QImage::Format_RGB888);
     std::chrono::_V2::system_clock::time_point lastFrameTimestamp = std::chrono::high_resolution_clock::now();

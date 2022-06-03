@@ -6,7 +6,8 @@ import QtQuick.Layouts 1.15
 Window {
     id: mainWindow
     width: 1280
-    height: 720
+    height: 500
+    minimumHeight: 480
     visible: true
     title: qsTr("Realsense Height Measurement")
     onClosing: Realsense.stop()
@@ -19,6 +20,7 @@ Window {
             resolutionSelector.enabled = !Realsense.running
             startButton.enabled = !Realsense.running
             stopButton.enabled = Realsense.running
+            tareButton.enabled = Realsense.running
         }
     }
 
@@ -33,11 +35,10 @@ Window {
             Layout.preferredWidth: statusBarSize
             ComboBox {
                 id: resolutionSelector
-                enabled: !Realsense.running
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
-                currentIndex: 4
+                currentIndex: 3
                 model: ListModel {
                     ListElement {text: "424x240"}
                     ListElement {text: "480x270"}
@@ -160,6 +161,18 @@ Window {
                 text: "Frame time: " + Realsense.frameTime.toLocaleString(Qt.locale("de_DE"), 'f', 0) + " ms"
                 horizontalAlignment: Text.AlignHCenter
             }
+            Button {
+                id: tareButton
+                text: "Tare"
+                Layout.fillWidth: true
+                Layout.columnSpan: 2
+                onClicked: Realsense.tare()
+                Component.onCompleted: enabled = false
+            }
+            CheckBox {
+                checked: Realsense.useExtrinsics
+                text: "Use extrinsics"
+            }
         }
 
         Image {
@@ -175,8 +188,8 @@ Window {
                 function onResolutionChanged() {
                     image.source = "image://color"
                     image.fillMode = Image.PreserveAspectFit
+                    mainWindow.width = Realsense.width + controlLayout.width
                     mainWindow.height = Realsense.height
-                    mainWindow.width = Realsense.width + statusBarSize
                 }
             }
             Layout.fillWidth: true

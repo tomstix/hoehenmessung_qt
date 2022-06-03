@@ -1,5 +1,8 @@
 #include "realsense.h"
 
+#include <Eigen/Core>
+#include <Eigen/Geometry>
+
 void RealsenseWorker::setResolution(Resolution res_)
 {
     res = res_;
@@ -61,11 +64,47 @@ void RealsenseWorker::stop()
 {
     m_isRunning = false;
 }
+void RealsenseWorker::tare()
+{
+    using namespace std;
+    using namespace Eigen;
+
+    Vector3f plane_vec = groundPlaneCoefficients->head<3>();
+    Vector3f y_vector = {0.0, -1.0, 0.0};
+    Vector3f rot_vector = y_vector.cross(plane_vec);
+    rot_vector.normalize();
+    float dist = groundPlaneCoefficients->w();
+    float angle_cos = y_vector.dot(plane_vec);
+    float angle = acos(angle_cos);
+
+    Matrix<float, 3, 3, ColMajor> rot_matrix;
+    rot_matrix = AngleAxis(angle, rot_vector);
+
+    extrinsics->rotation[0] = rot_matrix(0,0);
+    extrinsics->rotation[1] = rot_matrix(0,1);
+    extrinsics->rotation[2] = rot_matrix(0,2);
+    extrinsics->rotation[3] = rot_matrix(1,0);
+    extrinsics->rotation[4] = rot_matrix(1,1);
+    extrinsics->rotation[5] = rot_matrix(1,2);
+    extrinsics->rotation[6] = rot_matrix(2,0);
+    extrinsics->rotation[7] = rot_matrix(2,1);
+    extrinsics->rotation[8] = rot_matrix(2,2);
+
+    extrinsics->rotation[0] = 0;
+    extrinsics->rotation[1] = dist;
+    extrinsics->rotation[2] = 0;
+    tared = true;
+}
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::rsDepthFrameToPCLCloud(std::unique_ptr<rs2::depth_frame> depth_frame) const
 {
     rs2::pointcloud pc;
     rs2::points points = pc.calculate(*depth_frame);
+
+    if (useExtrinsics)
+    {
+        // TODO: tranform points using intrinsic matrix;
+    }
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud(new pcl::PointCloud<pcl::PointXYZ>);
     auto sp = points.get_profile().as<rs2::video_stream_profile>();
@@ -92,7 +131,7 @@ void RealsenseWorker::projectPointsToImage(pcl::PointCloud<pcl::PointXYZ>::Ptr p
 {
     QPainter painter(image);
     QPen pen = painter.pen();
-    pen.setColor(Qt::green);
+    pen.setColor(Qt::red);
     pen.setWidthF(pointcloudoptions.voxel_size * 100.0F);
     painter.setPen(pen);
 #pragma omp parallel for default(none) shared(image, pclCloud)
@@ -144,6 +183,8 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
 
         Eigen::VectorXf groundPlaneCoefficientsRaw;
         groundPlaneRansac.getModelCoefficients(groundPlaneCoefficientsRaw);
+
+        // flip plane if upside down
         if (groundPlaneCoefficientsRaw.w() < 0)
         {
             groundPlaneCoefficientsRaw = -groundPlaneCoefficientsRaw;
@@ -159,8 +200,6 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
 void RealsenseWorker::run()
 {
     qDebug() << "Starting Realsense with " << m_width << "x" << m_height;
-    m_isRunning = true;
-    emit isRunningChanged();
     cfg.enable_stream(RS2_STREAM_DEPTH, m_width, m_height, RS2_FORMAT_Z16, 30);
     cfg.enable_stream(RS2_STREAM_COLOR, m_width, m_height, RS2_FORMAT_RGB8, 30);
     pipe_profile = pipe.start(cfg);
@@ -168,6 +207,9 @@ void RealsenseWorker::run()
     sensor.set_option(RS2_OPTION_VISUAL_PRESET, RS2_RS400_VISUAL_PRESET_HIGH_ACCURACY);
     auto depth_stream = pipe_profile.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
     *intrinsics = depth_stream.get_intrinsics();
+
+    m_isRunning = true;
+    emit isRunningChanged();
 
     while (m_isRunning)
     {
