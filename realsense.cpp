@@ -53,6 +53,10 @@ float RealsenseWorker::distanceRaw() const
 {
     return groundPlaneCoefficients->w();
 }
+int RealsenseWorker::frameTime() const
+{
+    return (int)frameTime_ms.count();
+}
 void RealsenseWorker::stop()
 {
     m_isRunning = false;
@@ -87,7 +91,11 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::rsDepthFrameToPCLCloud(std:
 void RealsenseWorker::projectPointsToImage(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud, QImage *image) const
 {
     QPainter painter(image);
-    painter.setPen(Qt::green);
+    QPen pen = painter.pen();
+    pen.setColor(Qt::green);
+    pen.setWidthF(pointcloudoptions.voxel_size * 100.0F);
+    painter.setPen(pen);
+#pragma omp parallel for default(none) shared(image, pclCloud)
     for (auto point : pclCloud->points)
     {
         float pix[2];
@@ -180,6 +188,11 @@ void RealsenseWorker::run()
         projectPointsToImage(gpc, colorImage);
 
         emit newFrameReady();
+
+        auto time_now = std::chrono::high_resolution_clock::now();
+        frameTime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - lastFrameTimestamp);
+        emit frameTimeChanged();
+        lastFrameTimestamp = std::chrono::high_resolution_clock::now();
     }
     qDebug() << "Stopping Realsense";
     emit isRunningChanged();

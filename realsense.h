@@ -66,6 +66,7 @@ class RealsenseWorker : public QThread, public QQuickImageProvider
     Q_PROPERTY(bool running READ running NOTIFY isRunningChanged)
     Q_PROPERTY(PointcloudOptions pointcloudoptions READ getPointcloudoptions WRITE setPointcloudoptions NOTIFY pointcloudoptionsChanged)
     Q_PROPERTY(float distanceRaw READ distanceRaw NOTIFY newFrameReady)
+    Q_PROPERTY(int frameTime READ frameTime NOTIFY frameTimeChanged)
 
 public:
     RealsenseWorker() : QQuickImageProvider(QQuickImageProvider::Image)
@@ -103,6 +104,8 @@ public:
 
     float distanceRaw() const;
 
+    int frameTime() const;
+
 public slots:
     void stop();
 
@@ -114,6 +117,7 @@ signals:
     void newFrameReady();
     void statusStringChanged();
     void pointcloudoptionsChanged();
+    void frameTimeChanged();
 
 protected:
     void run() override;
@@ -130,6 +134,8 @@ private:
     bool m_isRunning;
 
     QImage *colorImage = new QImage(1280, 720, QImage::Format_RGB888);
+    std::chrono::_V2::system_clock::time_point lastFrameTimestamp = std::chrono::high_resolution_clock::now();
+    std::chrono::milliseconds frameTime_ms = std::chrono::milliseconds::zero();
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr rsDepthFrameToPCLCloud(std::unique_ptr<rs2::depth_frame> depth_frame) const;
     pcl::PointCloud<pcl::PointXYZ>::Ptr processPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr) const;

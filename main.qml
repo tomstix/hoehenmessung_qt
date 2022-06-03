@@ -104,7 +104,7 @@ Window {
             LabelledSlider {
                 labeltext: "Voxel size"
                 unitSuffix: " cm"
-                minValue: 0.1
+                minValue: 0.5
                 maxValue: 5.0
                 step: 0.1
                 initialValue: 2.0
@@ -125,7 +125,7 @@ Window {
             }
             LabelledSlider {
                 labeltext: "Plane angle max."
-                unitSuffix: " °"
+                unitSuffix: "°"
                 minValue: 1.0
                 maxValue: 45.0
                 step: 1.0
@@ -148,8 +148,16 @@ Window {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillWidth: true
                 property string textc: "Nothing received yet"
-                id: label
-                text: Realsense.distanceRaw.toLocaleString()
+                id: distanceLabel
+                text: "Raw height: " + Realsense.distanceRaw.toLocaleString(Qt.locale("de_DE"), 'f', 2) + " m"
+                horizontalAlignment: Text.AlignHCenter
+            }
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                property string textc: "Nothing received yet"
+                id: frametimeLabel
+                text: "Frame time: " + Realsense.frameTime.toLocaleString(Qt.locale("de_DE"), 'f', 0) + " ms"
                 horizontalAlignment: Text.AlignHCenter
             }
         }
