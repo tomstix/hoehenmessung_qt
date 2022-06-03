@@ -49,6 +49,10 @@ bool RealsenseWorker::running() const
 {
     return m_isRunning;
 }
+float RealsenseWorker::distanceRaw() const
+{
+    return groundPlaneCoefficients->w();
+}
 void RealsenseWorker::stop()
 {
     m_isRunning = false;
@@ -175,7 +179,7 @@ void RealsenseWorker::run()
         auto gpc = processPointcloud(pclCloud);
         projectPointsToImage(gpc, colorImage);
 
-        emit colorImageReady();
+        emit newFrameReady();
     }
     qDebug() << "Stopping Realsense";
     emit isRunningChanged();

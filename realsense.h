@@ -22,7 +22,8 @@
 
 struct PointcloudOptions
 {
-    //Q_GADGET
+    Q_GADGET
+public:
     bool enable_processing = true;
     bool filter_x = true;
     float x_min = -5.5F / 2.0F;
@@ -32,13 +33,13 @@ struct PointcloudOptions
     float y_max = 4.5F;
     bool filter_z = true;
     float z_min = 0.2F;
-    float z_max = 20.0F;
+    float z_max = 15.0F;
     float voxel_size = 0.01F;
     float ransac_threshold = 0.05F;
     float ransac_angle_max = 20.0F;
     int ransac_iterations = 1000;
     float ma_alpha = 0.1F;
-    /*Q_PROPERTY(bool enable_processing MEMBER enable_processing)
+    Q_PROPERTY(bool enable_processing MEMBER enable_processing)
     Q_PROPERTY(bool filter_x MEMBER filter_x)
     Q_PROPERTY(float x_min MEMBER x_min)
     Q_PROPERTY(float x_max MEMBER x_max)
@@ -52,8 +53,9 @@ struct PointcloudOptions
     Q_PROPERTY(float ransac_threshold MEMBER ransac_threshold)
     Q_PROPERTY(float ransac_angle_max MEMBER ransac_angle_max)
     Q_PROPERTY(int ransac_iterations MEMBER ransac_iterations)
-    Q_PROPERTY(float ma_alpha MEMBER ma_alpha)*/
+    Q_PROPERTY(float ma_alpha MEMBER ma_alpha)
 };
+Q_DECLARE_METATYPE(PointcloudOptions)
 
 class RealsenseWorker : public QThread, public QQuickImageProvider
 {
@@ -62,6 +64,8 @@ class RealsenseWorker : public QThread, public QQuickImageProvider
     Q_PROPERTY(int width READ width NOTIFY widthChanged)
     Q_PROPERTY(int height READ height NOTIFY heightChanged)
     Q_PROPERTY(bool running READ running NOTIFY isRunningChanged)
+    Q_PROPERTY(PointcloudOptions pointcloudoptions READ getPointcloudoptions WRITE setPointcloudoptions NOTIFY pointcloudoptionsChanged)
+    Q_PROPERTY(float distanceRaw READ distanceRaw NOTIFY newFrameReady)
 
 public:
     RealsenseWorker() : QQuickImageProvider(QQuickImageProvider::Image)
@@ -82,10 +86,22 @@ public:
     void setResolution(Resolution res_);
     Resolution resolution() const;
 
+    PointcloudOptions getPointcloudoptions() const
+    {
+        return pointcloudoptions;
+    }
+    void setPointcloudoptions(PointcloudOptions po)
+    {
+        pointcloudoptions = po;
+        emit pointcloudoptionsChanged();
+    }
+
     int width() const;
     int height() const;
 
     bool running() const;
+
+    float distanceRaw() const;
 
 public slots:
     void stop();
@@ -95,7 +111,9 @@ signals:
     void widthChanged(const int w);
     void resolutionChanged();
     void isRunningChanged();
-    void colorImageReady();
+    void newFrameReady();
+    void statusStringChanged();
+    void pointcloudoptionsChanged();
 
 protected:
     void run() override;
