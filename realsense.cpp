@@ -132,7 +132,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
     pcl::SampleConsensusModelPerpendicularPlane<pcl::PointXYZ>::Ptr groundPlaneModel(new pcl::SampleConsensusModelPerpendicularPlane<pcl::PointXYZ>(cloud_downsampled));
     pcl::RandomSampleConsensus<pcl::PointXYZ> groundPlaneRansac(groundPlaneModel);
     std::vector<int> groundPlaneInliers;
-    groundPlaneModel->setAxis(Eigen::Vector3f(0.0,-1.0,0.0));
+    groundPlaneModel->setAxis(Eigen::Vector3f(0.0, -1.0, 0.0));
     groundPlaneModel->setEpsAngle(pointcloudoptions.ransac_angle_max * M_PI / 180.0);
     groundPlaneRansac.setDistanceThreshold(pointcloudoptions.ransac_threshold);
     groundPlaneRansac.setMaxIterations(pointcloudoptions.ransac_iterations);
@@ -150,9 +150,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
         }
 
         // moving average of plane equation
-        *groundPlaneCoefficients = (Eigen::Vector4f)(groundPlaneCoefficientsRaw.head<4>() * pointcloudoptions.ma_alpha + *groundPlaneCoefficients*(1.0F-pointcloudoptions.ma_alpha));
-
-
+        *groundPlaneCoefficients = (Eigen::Vector4f)(groundPlaneCoefficientsRaw.head<4>() * pointcloudoptions.ma_alpha + *groundPlaneCoefficients * (1.0F - pointcloudoptions.ma_alpha));
     }
 
     return groundPlaneCloud;
@@ -173,26 +171,29 @@ void RealsenseWorker::run()
 
     while (m_isRunning)
     {
-        frames = pipe.wait_for_frames();
-        
-        auto color_frame = frames.get_color_frame();
-        auto depth_frame = frames.get_depth_frame();
+        auto frames = pipe.wait_for_frames(10);
 
-        auto vf = color_frame.as<rs2::video_frame>();
-        if (color_frame.get_profile().format() == RS2_FORMAT_RGB8)
+        if (frames)
         {
-            *colorImage = QImage((uchar *)color_frame.get_data(), m_width, m_height, m_width * 3, QImage::Format_RGB888);
+            auto color_frame = frames.get_color_frame();
+            auto depth_frame = frames.get_depth_frame();
+
+            auto vf = color_frame.as<rs2::video_frame>();
+            if (color_frame.get_profile().format() == RS2_FORMAT_RGB8)
+            {
+                *colorImage = QImage((uchar *)color_frame.get_data(), m_width, m_height, m_width * 3, QImage::Format_RGB888);
+            }
+            auto pclCloud = rsDepthFrameToPCLCloud(std::make_unique<rs2::depth_frame>(depth_frame));
+            auto gpc = processPointcloud(pclCloud);
+            projectPointsToImage(gpc, colorImage);
+
+            emit newFrameReady();
+
+            auto time_now = std::chrono::high_resolution_clock::now();
+            frameTime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - lastFrameTimestamp);
+            emit frameTimeChanged();
+            lastFrameTimestamp = std::chrono::high_resolution_clock::now();
         }
-        auto pclCloud = rsDepthFrameToPCLCloud(std::make_unique<rs2::depth_frame>(depth_frame));
-        auto gpc = processPointcloud(pclCloud);
-        projectPointsToImage(gpc, colorImage);
-
-        emit newFrameReady();
-
-        auto time_now = std::chrono::high_resolution_clock::now();
-        frameTime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - lastFrameTimestamp);
-        emit frameTimeChanged();
-        lastFrameTimestamp = std::chrono::high_resolution_clock::now();
     }
     qDebug() << "Stopping Realsense";
     emit isRunningChanged();
@@ -201,7 +202,8 @@ void RealsenseWorker::run()
 
 QImage RealsenseWorker::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
-    if (size) *size = QSize(m_width, m_height);
+    if (size)
+        *size = QSize(m_width, m_height);
 
     return *colorImage;
 }

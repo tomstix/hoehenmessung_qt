@@ -126,7 +126,6 @@ private:
     rs2::config cfg;
     rs2::pipeline pipe;
     rs2::pipeline_profile pipe_profile;
-    rs2::frameset frames;
     Resolution res = RES_1280_720;
     int m_width;
     int m_height;
