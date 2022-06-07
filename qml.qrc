@@ -2,5 +2,6 @@
     <qresource prefix="/">
         <file>main.qml</file>
         <file>LabelledSlider.qml</file>
+        <file>CANSettings.qml</file>
     </qresource>
 </RCC>

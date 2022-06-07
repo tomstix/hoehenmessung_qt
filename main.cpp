@@ -3,6 +3,7 @@
 #include <QQmlContext>
 
 #include "realsense.h"
+#include "can.h"
 
 
 int main(int argc, char *argv[])
@@ -23,6 +24,9 @@ int main(int argc, char *argv[])
     auto realsenseWorker = new RealsenseWorker;
     engine.addImageProvider("color", realsenseWorker);
     engine.rootContext()->setContextProperty("Realsense", realsenseWorker);
+
+    auto canBus = new CAN;
+    engine.rootContext()->setContextProperty("CAN", canBus);
 
     engine.load(url);
 

@@ -62,7 +62,7 @@ int RealsenseWorker::frameTime() const
 }
 void RealsenseWorker::stop()
 {
-    m_isRunning = false;
+    m_abortFlag = true;
 }
 void RealsenseWorker::tare()
 {
@@ -156,18 +156,18 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
     pcl::PointCloud<pcl::PointXYZ>::Ptr groundPlaneCloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::CropBox<pcl::PointXYZ> cropBox;
     pcl::VoxelGrid<pcl::PointXYZ> downsample;
-    
+
     // crop PointCloud
     Eigen::Vector4f min = {pointcloudoptions.x_min, pointcloudoptions.y_min, pointcloudoptions.z_min, 1.0F};
     Eigen::Vector4f max = {pointcloudoptions.x_max, pointcloudoptions.y_max, pointcloudoptions.z_max, 1.0F};
-    
+
     // transform point cloud to world coordinates
     if (tared)
     {
         pcl::transformPointCloud(*pclCloud, *cloud_transformed, *transform_mat);
         cropBox.setInputCloud(cloud_transformed);
     }
-    else 
+    else
     {
         cropBox.setInputCloud(pclCloud);
     }
@@ -212,22 +212,24 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
 }
 
 void RealsenseWorker::run()
+try
 {
     qDebug() << "Starting Realsense with " << m_width << "x" << m_height;
     cfg.enable_stream(RS2_STREAM_DEPTH, m_width, m_height, RS2_FORMAT_Z16, 30);
     cfg.enable_stream(RS2_STREAM_COLOR, m_width, m_height, RS2_FORMAT_RGB8, 30);
-    pipe_profile = pipe.start(cfg);
+    pipe_profile = pipe->start(cfg);
     auto sensor = pipe_profile.get_device().first<rs2::depth_sensor>();
     sensor.set_option(RS2_OPTION_VISUAL_PRESET, RS2_RS400_VISUAL_PRESET_HIGH_ACCURACY);
     auto depth_stream = pipe_profile.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
     *intrinsics = depth_stream.get_intrinsics();
 
     m_isRunning = true;
+    m_abortFlag = false;
     emit isRunningChanged();
 
-    while (m_isRunning)
+    while (!m_abortFlag)
     {
-        auto frames = pipe.wait_for_frames(10);
+        auto frames = pipe->wait_for_frames();
 
         if (frames)
         {
@@ -251,9 +253,14 @@ void RealsenseWorker::run()
             lastFrameTimestamp = std::chrono::high_resolution_clock::now();
         }
     }
-    qDebug() << "Stopping Realsense";
+    pipe->stop();
+    qDebug() << "Realsense stopped";
+    m_isRunning = false;
     emit isRunningChanged();
-    pipe.stop();
+}
+catch (const rs2::error &e)
+{
+    std::cerr << "Realsense error calling " << e.get_failed_function() << "(" << e.get_failed_args() << "):\n   " << e.what() << std::endl;
 }
 
 QImage RealsenseWorker::requestImage(const QString &id, QSize *size, const QSize &requestedSize)

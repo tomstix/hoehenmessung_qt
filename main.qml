@@ -3,16 +3,47 @@ import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 
-Window {
+ApplicationWindow {
     id: mainWindow
     width: 1280
     height: 500
-    minimumHeight: 480
+    minimumHeight: 550
     visible: true
+    visibility: "FullScreen"
     title: qsTr("Realsense Height Measurement")
-    onClosing: Realsense.stop()
 
-    property int statusBarSize: 300
+    property bool shallClose: false
+    property int statusBarSize: 270
+
+    onClosing: {
+        close.accepted = !Realsense.running
+        shallClose = true
+        Realsense.stop()
+    }
+
+    Loader { id: canSettingsLoader }
+
+    menuBar: MenuBar {
+        Menu {
+            title: qsTr("&Settings")
+            MenuItem {
+                action: openCANSettings
+            }
+            MenuSeparator { }
+            Action {
+                text: qsTr("&Quit")
+                onTriggered: mainWindow.close()
+            }
+        }
+    }
+
+    Action {
+        id: openCANSettings
+        text: qsTr("&CAN Bus Settings")
+        onTriggered: {
+            canSettingsLoader.source = "CANSettings.qml"
+        }
+    }
 
     Connections {
         target: Realsense
@@ -21,6 +52,10 @@ Window {
             startButton.enabled = !Realsense.running
             stopButton.enabled = Realsense.running
             tareButton.enabled = Realsense.running
+            if (shallClose)
+            {
+                Qt.quit();
+            }
         }
     }
 
@@ -208,8 +243,8 @@ Window {
             }
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.preferredWidth: sourceSize.width
-            Layout.preferredHeight: sourceSize.height
+            Layout.preferredWidth: Realsense.width
+            Layout.preferredHeight: Realsense.height
         }
     }
 }

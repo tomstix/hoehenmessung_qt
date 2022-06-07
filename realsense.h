@@ -1,5 +1,4 @@
-#ifndef REALSENSE_H
-#define REALSENSE_H
+#pragma once
 
 #include <QObject>
 #include <QImage>
@@ -129,13 +128,14 @@ protected:
 
 private:
     rs2::config cfg;
-    rs2::pipeline pipe;
+    std::shared_ptr<rs2::pipeline> pipe = std::make_shared<rs2::pipeline>();
     rs2::pipeline_profile pipe_profile;
     Resolution res = RES_1280_720;
     int m_width;
     int m_height;
     std::vector<std::vector<double>> intrinsic_matrix;
-    bool m_isRunning;
+    bool m_isRunning = false;
+    bool m_abortFlag = false;
 
     std::shared_ptr<Eigen::Affine3f> transform_mat = std::make_shared<Eigen::Affine3f>(Eigen::Affine3f::Identity());
     bool tared = false;
@@ -152,5 +152,3 @@ private:
     std::shared_ptr<rs2_intrinsics> intrinsics = std::make_shared<rs2_intrinsics>();
     PointcloudOptions pointcloudoptions;
 };
-
-#endif // REALSENSE_H
