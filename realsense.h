@@ -13,6 +13,7 @@
 
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
+#include <pcl/common/transforms.h>
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/sample_consensus/ransac.h>
@@ -29,8 +30,8 @@ public:
     float x_min = -5.5F / 2.0F;
     float x_max = 5.5F / 2.0F;
     bool filter_y = true;
-    float y_min = 0.5F;
-    float y_max = 4.5F;
+    float y_min = 0.0;
+    float y_max = 5.5F;
     bool filter_z = true;
     float z_min = 0.2F;
     float z_max = 15.0F;
@@ -67,7 +68,7 @@ class RealsenseWorker : public QThread, public QQuickImageProvider
     Q_PROPERTY(PointcloudOptions pointcloudoptions READ getPointcloudoptions WRITE setPointcloudoptions NOTIFY pointcloudoptionsChanged)
     Q_PROPERTY(float distanceRaw READ distanceRaw NOTIFY newFrameReady)
     Q_PROPERTY(int frameTime READ frameTime NOTIFY frameTimeChanged)
-    Q_PROPERTY(bool useExtrinsics MEMBER useExtrinsics NOTIFY useExtrinsicsChanged)
+    Q_PROPERTY(bool tared MEMBER tared NOTIFY tareChanged)
 
 public:
     RealsenseWorker() : QQuickImageProvider(QQuickImageProvider::Image)
@@ -110,6 +111,7 @@ public:
 public slots:
     void stop();
     void tare();
+    void resetTare();
 
 signals:
     void heightChanged(const int h);
@@ -120,7 +122,7 @@ signals:
     void statusStringChanged();
     void pointcloudoptionsChanged();
     void frameTimeChanged();
-    void useExtrinsicsChanged();
+    void tareChanged();
 
 protected:
     void run() override;
@@ -135,9 +137,8 @@ private:
     std::vector<std::vector<double>> intrinsic_matrix;
     bool m_isRunning;
 
-    rs2_extrinsics *extrinsics = new rs2_extrinsics;
+    std::shared_ptr<Eigen::Affine3f> transform_mat = std::make_shared<Eigen::Affine3f>(Eigen::Affine3f::Identity());
     bool tared = false;
-    bool useExtrinsics = false;
 
     QImage *colorImage = new QImage(1280, 720, QImage::Format_RGB888);
     std::chrono::_V2::system_clock::time_point lastFrameTimestamp = std::chrono::high_resolution_clock::now();

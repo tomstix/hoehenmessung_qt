@@ -162,16 +162,30 @@ Window {
                 horizontalAlignment: Text.AlignHCenter
             }
             Button {
+                id: resetTareButton
+                text: "Reset Tare"
+                Layout.fillWidth: true
+                onClicked: Realsense.resetTare()
+                Component.onCompleted: enabled = false
+                Connections {
+                    target: Realsense
+                    function onTareChanged() {
+                        resetTareButton.enabled = Realsense.tared
+                    }
+                }
+            }
+            Button {
                 id: tareButton
                 text: "Tare"
                 Layout.fillWidth: true
-                Layout.columnSpan: 2
                 onClicked: Realsense.tare()
                 Component.onCompleted: enabled = false
-            }
-            CheckBox {
-                checked: Realsense.useExtrinsics
-                text: "Use extrinsics"
+                Connections {
+                    target: Realsense
+                    function onTareChanged() {
+                        tareButton.enabled = !Realsense.tared
+                    }
+                }
             }
         }
 

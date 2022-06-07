@@ -77,42 +77,40 @@ void RealsenseWorker::tare()
     float angle_cos = y_vector.dot(plane_vec);
     float angle = acos(angle_cos);
 
-    Matrix<float, 3, 3, ColMajor> rot_matrix;
-    rot_matrix = AngleAxis(angle, rot_vector);
+    Matrix3f rot_matrix;
+    rot_matrix = AngleAxis(-angle, rot_vector);
 
-    extrinsics->rotation[0] = rot_matrix(0,0);
-    extrinsics->rotation[1] = rot_matrix(0,1);
-    extrinsics->rotation[2] = rot_matrix(0,2);
-    extrinsics->rotation[3] = rot_matrix(1,0);
-    extrinsics->rotation[4] = rot_matrix(1,1);
-    extrinsics->rotation[5] = rot_matrix(1,2);
-    extrinsics->rotation[6] = rot_matrix(2,0);
-    extrinsics->rotation[7] = rot_matrix(2,1);
-    extrinsics->rotation[8] = rot_matrix(2,2);
+    transform_mat->rotate(rot_matrix);
+    transform_mat->translation() << 0.0, -dist, 0.0;
 
-    extrinsics->rotation[0] = 0;
-    extrinsics->rotation[1] = dist;
-    extrinsics->rotation[2] = 0;
+    pointcloudoptions.y_min = -2.0F;
+    pointcloudoptions.y_max = 2.0F;
+    groundPlaneCoefficients->w() = 0.0F;
     tared = true;
+    emit tareChanged();
+}
+
+void RealsenseWorker::resetTare()
+{
+    *transform_mat = Eigen::Affine3f::Identity().inverse();
+    pointcloudoptions.y_min = 0.0F;
+    pointcloudoptions.y_max = 5.5F;
+    tared = false;
+    emit tareChanged();
 }
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::rsDepthFrameToPCLCloud(std::unique_ptr<rs2::depth_frame> depth_frame) const
 {
     rs2::pointcloud pc;
-    rs2::points points = pc.calculate(*depth_frame);
-
-    if (useExtrinsics)
-    {
-        // TODO: tranform points using intrinsic matrix;
-    }
+    rs2::points points_cam = pc.calculate(*depth_frame);
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud(new pcl::PointCloud<pcl::PointXYZ>);
-    auto sp = points.get_profile().as<rs2::video_stream_profile>();
+    auto sp = points_cam.get_profile().as<rs2::video_stream_profile>();
     pclCloud->width = sp.width();
     pclCloud->height = sp.height();
     pclCloud->is_dense = false;
-    pclCloud->points.resize(points.size());
-    const auto cloud_vertices_ptr = points.get_vertices();
+    pclCloud->points.resize(points_cam.size());
+    const auto cloud_vertices_ptr = points_cam.get_vertices();
 #pragma omp parallel for default(none) shared(pclCloud, cloud_vertices_ptr)
     for (std::size_t index = 0; index < pclCloud->size(); index++)
     {
@@ -129,6 +127,10 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::rsDepthFrameToPCLCloud(std:
 
 void RealsenseWorker::projectPointsToImage(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud, QImage *image) const
 {
+    if (tared)
+    {
+        pcl::transformPointCloud(*pclCloud, *pclCloud, transform_mat->inverse());
+    }
     QPainter painter(image);
     QPen pen = painter.pen();
     pen.setColor(Qt::red);
@@ -147,17 +149,29 @@ void RealsenseWorker::projectPointsToImage(pcl::PointCloud<pcl::PointXYZ>::Ptr p
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud) const
 {
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cropped(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_downsampled(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_processed(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointCloud<pcl::PointXYZ>::Ptr groundPlaneCloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::CropBox<pcl::PointXYZ> cropBox;
     pcl::VoxelGrid<pcl::PointXYZ> downsample;
-
+    
     // crop PointCloud
     Eigen::Vector4f min = {pointcloudoptions.x_min, pointcloudoptions.y_min, pointcloudoptions.z_min, 1.0F};
     Eigen::Vector4f max = {pointcloudoptions.x_max, pointcloudoptions.y_max, pointcloudoptions.z_max, 1.0F};
-    cropBox.setInputCloud(pclCloud);
+    
+    // transform point cloud to world coordinates
+    if (tared)
+    {
+        pcl::transformPointCloud(*pclCloud, *cloud_transformed, *transform_mat);
+        cropBox.setInputCloud(cloud_transformed);
+    }
+    else 
+    {
+        cropBox.setInputCloud(pclCloud);
+    }
+
     cropBox.setMin(min);
     cropBox.setMax(max);
     cropBox.filter(*cloud_cropped);
@@ -226,8 +240,8 @@ void RealsenseWorker::run()
                 *colorImage = QImage((uchar *)color_frame.get_data(), m_width, m_height, m_width * 3, QImage::Format_RGB888);
             }
             auto pclCloud = rsDepthFrameToPCLCloud(std::make_unique<rs2::depth_frame>(depth_frame));
-            auto gpc = processPointcloud(pclCloud);
-            projectPointsToImage(gpc, colorImage);
+            auto groundPlaneCloud = processPointcloud(pclCloud);
+            projectPointsToImage(groundPlaneCloud, colorImage);
 
             emit newFrameReady();
 
