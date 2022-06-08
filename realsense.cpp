@@ -246,6 +246,10 @@ try
             projectPointsToImage(groundPlaneCloud, colorImage);
 
             emit newFrameReady();
+            QByteArray heightData;
+            heightData.append((char)(int16_t)(groundPlaneCoefficients->w() * 100.0));
+            heightData.append((int16_t)(groundPlaneCoefficients->w() * 100.0) >> 8);
+            emit sendCANHeight(100, heightData, true);
 
             auto time_now = std::chrono::high_resolution_clock::now();
             frameTime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - lastFrameTimestamp);

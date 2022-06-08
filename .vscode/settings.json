@@ -1,5 +1,5 @@
 {
-    "sonarlint.pathToCompileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "sonarlint.pathToCompileCommands": "${workspaceFolder}/build/.qtc_clangd/compile_commands.json",
     "files.associations": {
         "qquickimageprovider": "cpp",
         "array": "cpp",
@@ -67,5 +67,8 @@
         "typeinfo": "cpp",
         "variant": "cpp",
         "core": "cpp"
+    },
+    "cmake.environment": {
+        "CMAKE_PREFIX_PATH" : "/home/tom/Qt/5.15.2/gcc_64"
     }
 }

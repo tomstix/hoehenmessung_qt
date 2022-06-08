@@ -9,7 +9,7 @@ ApplicationWindow {
     height: 500
     minimumHeight: 550
     visible: true
-    visibility: "FullScreen"
+    visibility: "Maximized"
     title: qsTr("Realsense Height Measurement")
 
     property bool shallClose: false
@@ -68,6 +68,7 @@ ApplicationWindow {
             id: controlLayout
             columns: 2
             Layout.preferredWidth: statusBarSize
+            Layout.maximumWidth: statusBarSize
             ComboBox {
                 id: resolutionSelector
                 Layout.alignment: Qt.AlignHCenter
@@ -237,14 +238,12 @@ ApplicationWindow {
                 function onResolutionChanged() {
                     image.source = "image://color"
                     image.fillMode = Image.PreserveAspectFit
-                    mainWindow.width = Realsense.width + controlLayout.width
-                    mainWindow.height = Realsense.height
+                    image.Layout.preferredWidth = Realsense.width
+                    image.Layout.preferredHeight = Realsense.height
                 }
             }
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.preferredWidth: Realsense.width
-            Layout.preferredHeight: Realsense.height
         }
     }
 }

@@ -122,6 +122,7 @@ signals:
     void pointcloudoptionsChanged();
     void frameTimeChanged();
     void tareChanged();
+    void sendCANHeight(int id, QByteArray data, bool extended);
 
 protected:
     void run() override;
@@ -130,7 +131,7 @@ private:
     rs2::config cfg;
     std::shared_ptr<rs2::pipeline> pipe = std::make_shared<rs2::pipeline>();
     rs2::pipeline_profile pipe_profile;
-    Resolution res = RES_1280_720;
+    Resolution res = RES_640_480;
     int m_width;
     int m_height;
     std::vector<std::vector<double>> intrinsic_matrix;

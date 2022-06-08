@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
-                     &app, [url](QObject *obj, const QUrl &objUrl) {
+                     &app, [url](QObject const *obj, const QUrl &objUrl) {
         if (!obj && url == objUrl)
             QCoreApplication::exit(-1);
     }, Qt::QueuedConnection);
@@ -28,7 +28,9 @@ int main(int argc, char *argv[])
     auto canBus = new CAN;
     engine.rootContext()->setContextProperty("CAN", canBus);
 
+    QObject::connect(realsenseWorker, &RealsenseWorker::sendCANHeight, canBus, &CAN::sendCANMessage);
+
     engine.load(url);
 
-    return app.exec();
+    return QGuiApplication::exec();
 }
