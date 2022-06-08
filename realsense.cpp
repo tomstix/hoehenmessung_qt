@@ -1,5 +1,7 @@
 #include "realsense.h"
 
+#include <QFile>
+
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
@@ -64,10 +66,37 @@ void RealsenseWorker::stop()
 {
     m_abortFlag = true;
 }
+void RealsenseWorker::loadExtrinsics()
+{
+    using json = nlohmann::json;
+    using namespace Eigen;
+
+    QFile extrinsicsJsonFile("extrinsics.json");
+    if (!extrinsicsJsonFile.open(QIODevice::ReadOnly))
+    {
+        qDebug() << "Could not open file!";
+        return;
+    }
+
+    QTextStream in(&extrinsicsJsonFile);
+    auto j = json::parse(in.readAll().toStdString());
+
+    auto r = j["rotate"].get<std::vector<float>>();
+    auto t = j["translate"].get<std::vector<float>>();
+
+    Matrix3f rot_matrix(r.data());
+    
+    transform_mat->rotate(rot_matrix);
+    transform_mat->translation() << t.at(0), t.at(1), t.at(2);
+
+    tared = true;
+    emit tareChanged();
+}
 void RealsenseWorker::tare()
 {
     using namespace std;
     using namespace Eigen;
+    using json = nlohmann::json;
 
     Vector3f plane_vec = groundPlaneCoefficients->head<3>();
     Vector3f y_vector = {0.0, -1.0, 0.0};
@@ -86,6 +115,27 @@ void RealsenseWorker::tare()
     pointcloudoptions.y_min = -2.0F;
     pointcloudoptions.y_max = 2.0F;
     groundPlaneCoefficients->w() = 0.0F;
+
+    std::vector<float> rotateVec(rot_matrix.data(), rot_matrix.data() + rot_matrix.size());
+
+    std::vector<float> translateVec(transform_mat->translation().data(), transform_mat->translation().data() + transform_mat->translation().size());
+
+    json transformJson;
+    transformJson["name"] = "extrinsics";
+    transformJson["rotate"] = rotateVec;
+    transformJson["translate"] = translateVec;
+
+    QFile extrinsicsJsonFile("extrinsics.json");
+    if (!extrinsicsJsonFile.open(QIODevice::WriteOnly))
+    {
+        qDebug() << "Could not open file!";
+        return;
+    }
+    
+    QTextStream out(&extrinsicsJsonFile);
+    std::stringstream ss;
+    ss << transformJson;
+    out << QString::fromStdString(ss.str());
     tared = true;
     emit tareChanged();
 }
