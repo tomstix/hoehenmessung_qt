@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 
+include(FetchContent)
+
 project(hoehenmessung VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -15,6 +17,9 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Quick SerialBus)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Quick SerialBus)
 find_package(PCL REQUIRED)
 find_package(realsense2 REQUIRED)
+
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.10.5/json.tar.xz)
+FetchContent_MakeAvailable(json)
 
 include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
@@ -54,8 +59,14 @@ endif()
 
 target_compile_definitions(hoehenmessung
   PRIVATE $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>)
-target_link_libraries(hoehenmessung
-  PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Quick Qt${QT_VERSION_MAJOR}::SerialBus ${PCL_LIBRARIES} ${realsense2_LIBRARY})
+target_link_libraries(hoehenmessung PRIVATE
+                        Qt${QT_VERSION_MAJOR}::Core
+                        Qt${QT_VERSION_MAJOR}::Quick
+                        Qt${QT_VERSION_MAJOR}::SerialBus
+                        ${PCL_LIBRARIES}
+                        ${realsense2_LIBRARY}
+                        nlohmann_json::nlohmann_json
+                        )
 
 set_target_properties(hoehenmessung PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER my.example.com

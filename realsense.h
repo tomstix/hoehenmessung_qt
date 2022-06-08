@@ -20,6 +20,8 @@
 
 #include <Eigen/Core>
 
+#include <nlohmann/json.hpp>
+
 struct PointcloudOptions
 {
     Q_GADGET
@@ -111,6 +113,7 @@ public slots:
     void stop();
     void tare();
     void resetTare();
+    void loadExtrinsics();
 
 signals:
     void heightChanged(const int h);

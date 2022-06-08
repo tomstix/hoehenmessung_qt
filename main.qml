@@ -68,7 +68,8 @@ ApplicationWindow {
             id: controlLayout
             columns: 2
             Layout.preferredWidth: statusBarSize
-            Layout.maximumWidth: statusBarSize
+            Layout.fillWidth: true
+            Layout.fillHeight: true
             ComboBox {
                 id: resolutionSelector
                 Layout.alignment: Qt.AlignHCenter
@@ -222,6 +223,12 @@ ApplicationWindow {
                         tareButton.enabled = !Realsense.tared
                     }
                 }
+            }
+            Button {
+                id: loadExtrinsicsButton
+                text: "Load Extrinsics"
+                Layout.fillWidth: true
+                onClicked: Realsense.loadExtrinsics()
             }
         }
 
