@@ -236,20 +236,32 @@ ApplicationWindow {
                 checked: true
                 onToggled: Realsense.paintPoints = checked
             }
+            ComboBox {
+                id: imageSelector
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignHCenter
+                model: ListModel {
+                    ListElement {text: "Color Image"}
+                    ListElement {text: "Depth Image"}
+                }
+                onCurrentIndexChanged: image.src = currentIndex ? "image://realsense/depth/" : "image://realsense/color/"
+            }
         }
 
         Image {
             id: image
-            source: "image://color"
+            property string src: "image://realsense/color/"
+            source: src + 0
             Connections {
                 target: Realsense
-                property int counter
+                property int counter: 0
                 function onNewFrameReady() {
-                    image.source = "image://color/" + counter
-                    counter = counter + 1
+                    image.source = image.src + counter
+                    counter = !counter
                 }
                 function onResolutionChanged() {
-                    image.source = "image://color"
+                    image.source = image.src + 0
                     image.fillMode = Image.PreserveAspectFit
                     image.Layout.preferredWidth = Realsense.width
                     image.Layout.preferredHeight = Realsense.height

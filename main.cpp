@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
     }, Qt::QueuedConnection);
 
     auto realsenseWorker = new RealsenseWorker;
-    engine.addImageProvider("color", realsenseWorker);
+    engine.addImageProvider("realsense", realsenseWorker);
     engine.rootContext()->setContextProperty("Realsense", realsenseWorker);
 
     auto canBus = new CAN;

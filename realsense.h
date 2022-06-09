@@ -153,6 +153,7 @@ private:
     bool tared = false;
 
     QImage *colorImage = new QImage(1280, 720, QImage::Format_RGB888);
+    QImage *depthImage = new QImage(1280, 720, QImage::Format_Grayscale16);
     std::chrono::_V2::system_clock::time_point lastFrameTimestamp = std::chrono::high_resolution_clock::now();
     std::chrono::milliseconds frameTime_ms = std::chrono::milliseconds::zero();
 

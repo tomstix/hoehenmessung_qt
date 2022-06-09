@@ -302,6 +302,18 @@ try
             {
                 *colorImage = QImage((uchar *)color_frame.get_data(), m_width, m_height, m_width * 3, QImage::Format_RGB888);
             }
+            else
+            {
+                qDebug() << "Wrong format for color frame!";
+            }
+            if (depth_frame.get_profile().format() == RS2_FORMAT_Z16)
+            {
+                *depthImage = QImage((uchar *)depth_frame.get_data(), m_width, m_height, m_width * 2, QImage::Format_Grayscale16);
+            }
+            else
+            {
+                qDebug() << "Wrong format for depth frame!";
+            }
             auto pclCloud = rsDepthFrameToPCLCloud(std::make_unique<rs2::depth_frame>(depth_frame));
             auto groundPlaneCloud = processPointcloud(pclCloud);
             if (paintPoints)
@@ -330,8 +342,16 @@ catch (const rs2::error &e)
 
 QImage RealsenseWorker::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
+    QString id_ = id;
+    id_.chop(2);
+
     if (size)
         *size = QSize(m_width, m_height);
 
-    return *colorImage;
+    if (id_ == "color")
+        return *colorImage;
+    else if (id_ == "depth")
+        return *depthImage;
+
+    return QPixmap(requestedSize.width(), requestedSize.height()).toImage();
 }
