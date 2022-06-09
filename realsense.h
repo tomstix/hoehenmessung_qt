@@ -68,6 +68,7 @@ class RealsenseWorker : public QThread, public QQuickImageProvider
     Q_PROPERTY(bool running READ running NOTIFY isRunningChanged)
     Q_PROPERTY(PointcloudOptions pointcloudoptions READ getPointcloudoptions WRITE setPointcloudoptions NOTIFY pointcloudoptionsChanged)
     Q_PROPERTY(float distanceRaw READ distanceRaw NOTIFY newFrameReady)
+    Q_PROPERTY(QPointF heightPoint READ heightPoint NOTIFY newHeightPoint)
     Q_PROPERTY(int frameTime READ frameTime NOTIFY frameTimeChanged)
     Q_PROPERTY(bool tared MEMBER tared NOTIFY tareChanged)
     Q_PROPERTY(bool paintPoints MEMBER paintPoints NOTIFY paintPointsChanged)
@@ -103,12 +104,10 @@ public:
 
     int width() const;
     int height() const;
-
     bool running() const;
-
     float distanceRaw() const;
-
     int frameTime() const;
+    QPointF heightPoint() const;
 
 public slots:
     void stop();
@@ -127,6 +126,7 @@ signals:
     void frameTimeChanged();
     void tareChanged();
     void paintPointsChanged();
+    void newHeightPoint();
     void sendCANHeight(int id, QByteArray data, bool extended);
 
 protected:
@@ -156,6 +156,8 @@ private:
     QImage *depthImage = new QImage(1280, 720, QImage::Format_Grayscale16);
     std::chrono::_V2::system_clock::time_point lastFrameTimestamp = std::chrono::high_resolution_clock::now();
     std::chrono::milliseconds frameTime_ms = std::chrono::milliseconds::zero();
+
+    QPointF m_heightPoint;
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr rsDepthFrameToPCLCloud(std::unique_ptr<rs2::depth_frame> depth_frame) const;
     pcl::PointCloud<pcl::PointXYZ>::Ptr processPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr) const;

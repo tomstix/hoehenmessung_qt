@@ -58,6 +58,10 @@ float RealsenseWorker::distanceRaw() const
 {
     return groundPlaneCoefficients->w();
 }
+QPointF RealsenseWorker::heightPoint() const
+{
+    return m_heightPoint;
+}
 int RealsenseWorker::frameTime() const
 {
     return (int)frameTime_ms.count();
@@ -208,16 +212,15 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
     downsample.setLeafSize(pointcloudoptions.voxel_size, pointcloudoptions.voxel_size, pointcloudoptions.voxel_size);
     downsample.filter(*pclCloud);
 
-    // crop PointCloud
-    Eigen::Vector4f min = {pointcloudoptions.x_min, pointcloudoptions.y_min, pointcloudoptions.z_min, 1.0F};
-    Eigen::Vector4f max = {pointcloudoptions.x_max, pointcloudoptions.y_max, pointcloudoptions.z_max, 1.0F};
-
-    // transform point cloud to world coordinates
+    // transform point cloud to vehicle coordinates
     if (tared)
     {
         pcl::transformPointCloud(*pclCloud, *pclCloud, *transform_mat);
     }
-    
+
+    // crop PointCloud
+    Eigen::Vector4f min = {pointcloudoptions.x_min, pointcloudoptions.y_min, pointcloudoptions.z_min, 1.0F};
+    Eigen::Vector4f max = {pointcloudoptions.x_max, pointcloudoptions.y_max, pointcloudoptions.z_max, 1.0F};
     cropBox.setInputCloud(pclCloud);
     cropBox.setMin(min);
     cropBox.setMax(max);
@@ -241,7 +244,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
         groundPlaneRansac.getModelCoefficients(groundPlaneCoefficientsRaw);
 
         // flip plane if upside down
-        if (groundPlaneCoefficientsRaw.w() < 0)
+        if (groundPlaneCoefficientsRaw.w() > 0)
         {
             groundPlaneCoefficientsRaw = -groundPlaneCoefficientsRaw;
         }
@@ -287,6 +290,7 @@ void RealsenseWorker::run()
 try
 {
     startStreaming();
+    auto start_time = std::chrono::system_clock::now();
 
     while (!m_abortFlag)
     {
@@ -297,7 +301,7 @@ try
             auto color_frame = frames->get_color_frame();
             auto depth_frame = frames->get_depth_frame();
 
-            auto vf = color_frame.as<rs2::video_frame>();
+            // make QImages from Color and Depth frames
             if (color_frame.get_profile().format() == RS2_FORMAT_RGB8)
             {
                 *colorImage = QImage((uchar *)color_frame.get_data(), m_width, m_height, m_width * 3, QImage::Format_RGB888);
@@ -314,23 +318,33 @@ try
             {
                 qDebug() << "Wrong format for depth frame!";
             }
+
+            // Point Cloud Processing
             auto pclCloud = rsDepthFrameToPCLCloud(std::make_unique<rs2::depth_frame>(depth_frame));
             auto groundPlaneCloud = processPointcloud(pclCloud);
             if (paintPoints)
             {
                 projectPointsToImage(groundPlaneCloud, colorImage);
             }
-
             emit newFrameReady();
+
+            // send Data to CAN Bus
             QByteArray heightData;
             heightData.append((char)(int16_t)(groundPlaneCoefficients->w() * 100.0));
             heightData.append((int16_t)(groundPlaneCoefficients->w() * 100.0) >> 8);
             emit sendCANHeight(100, heightData, true);
 
+            // calculate frame time
             auto time_now = std::chrono::high_resolution_clock::now();
             frameTime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - lastFrameTimestamp);
             emit frameTimeChanged();
-            lastFrameTimestamp = std::chrono::high_resolution_clock::now();
+            lastFrameTimestamp = time_now;
+
+            auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - start_time);
+            long timestamp = now_ms.count();
+            m_heightPoint.setX((qreal)timestamp);
+            m_heightPoint.setY(groundPlaneCoefficients->w());
+            emit newHeightPoint();
         }
     }
     stopStreaming();
@@ -340,6 +354,7 @@ catch (const rs2::error &e)
     std::cerr << "Realsense error calling " << e.get_failed_function() << "(" << e.get_failed_args() << "):\n   " << e.what() << std::endl;
 }
 
+// QQuickImageProvider function
 QImage RealsenseWorker::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
     QString id_ = id;

@@ -66,7 +66,14 @@
         "cinttypes": "cpp",
         "typeinfo": "cpp",
         "variant": "cpp",
-        "core": "cpp"
+        "core": "cpp",
+        "csignal": "cpp",
+        "any": "cpp",
+        "codecvt": "cpp",
+        "forward_list": "cpp",
+        "unordered_set": "cpp",
+        "span": "cpp",
+        "valarray": "cpp"
     },
     "cmake.environment": {
         "CMAKE_PREFIX_PATH" : "/home/tom/Qt/5.15.2/gcc_64"

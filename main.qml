@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import QtCharts 2.15
 
 ApplicationWindow {
     id: mainWindow
@@ -182,22 +183,6 @@ ApplicationWindow {
                     Realsense.pointcloudoptions.ransac_iterations = value
                 }
             }
-            Label {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.fillWidth: true
-                property string textc: "Nothing received yet"
-                id: distanceLabel
-                text: "Raw height: " + Realsense.distanceRaw.toLocaleString(Qt.locale("de_DE"), 'f', 2) + " m"
-                horizontalAlignment: Text.AlignHCenter
-            }
-            Label {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.fillWidth: true
-                property string textc: "Nothing received yet"
-                id: frametimeLabel
-                text: "Frame time: " + Realsense.frameTime.toLocaleString(Qt.locale("de_DE"), 'f', 0) + " ms"
-                horizontalAlignment: Text.AlignHCenter
-            }
             Button {
                 id: resetTareButton
                 text: "Reset Tare"
@@ -246,6 +231,26 @@ ApplicationWindow {
                     ListElement {text: "Depth Image"}
                 }
                 onCurrentIndexChanged: image.src = currentIndex ? "image://realsense/depth/" : "image://realsense/color/"
+            }
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                property string textc: "Nothing received yet"
+                id: distanceLabel
+                text: "Raw height: " + Realsense.distanceRaw.toLocaleString(Qt.locale("de_DE"), 'f', 2) + " m"
+                horizontalAlignment: Text.AlignHCenter
+            }
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                property string textc: "Nothing received yet"
+                id: frametimeLabel
+                text: "Frame time: " + Realsense.frameTime.toLocaleString(Qt.locale("de_DE"), 'f', 0) + " ms"
+                horizontalAlignment: Text.AlignHCenter
+            }
+            RunningPlot{
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
             }
         }
 
