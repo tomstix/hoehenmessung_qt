@@ -154,6 +154,7 @@ private:
 
     QImage *colorImage = new QImage(1280, 720, QImage::Format_RGB888);
     QImage *depthImage = new QImage(1280, 720, QImage::Format_Grayscale16);
+    std::shared_ptr<QPixmap> planePixmap = std::make_shared<QPixmap>();
     std::chrono::_V2::system_clock::time_point lastFrameTimestamp = std::chrono::high_resolution_clock::now();
     std::chrono::milliseconds frameTime_ms = std::chrono::milliseconds::zero();
 
@@ -161,7 +162,7 @@ private:
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr rsDepthFrameToPCLCloud(std::unique_ptr<rs2::depth_frame> depth_frame) const;
     pcl::PointCloud<pcl::PointXYZ>::Ptr processPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr) const;
-    void projectPointsToImage(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud, QImage *image) const;
+    void projectPointsToPixmap(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud) const;
 
     std::shared_ptr<Eigen::Vector4f> groundPlaneCoefficients = std::make_shared<Eigen::Vector4f>(0, 0, 0, 0);
     std::shared_ptr<rs2_intrinsics> intrinsics = std::make_shared<rs2_intrinsics>();

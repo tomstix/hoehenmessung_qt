@@ -103,10 +103,10 @@ void RealsenseWorker::tare()
     using json = nlohmann::json;
 
     Vector3f plane_vec = groundPlaneCoefficients->head<3>();
-    Vector3f y_vector = {0.0, -1.0, 0.0};
+    Vector3f y_vector = {0.0, 1.0, 0.0};
     Vector3f rot_vector = y_vector.cross(plane_vec);
     rot_vector.normalize();
-    float dist = groundPlaneCoefficients->w();
+    float dist = -groundPlaneCoefficients->w();
     float angle_cos = y_vector.dot(plane_vec);
     float angle = acos(angle_cos);
 
@@ -179,13 +179,15 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::rsDepthFrameToPCLCloud(std:
     return pclCloud;
 }
 
-void RealsenseWorker::projectPointsToImage(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud, QImage *image) const
+void RealsenseWorker::projectPointsToPixmap(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud) const
 {
     if (tared)
     {
         pcl::transformPointCloud(*pclCloud, *pclCloud, transform_mat->inverse());
     }
-    QPainter painter(image);
+    QPixmap pixmap(m_width, m_height);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
     QPen pen = painter.pen();
     pen.setColor(Qt::red);
     pen.setWidthF(pointcloudoptions.voxel_size * 100.0F);
@@ -199,6 +201,7 @@ void RealsenseWorker::projectPointsToImage(pcl::PointCloud<pcl::PointXYZ>::Ptr p
         rs2_project_point_to_pixel(pix, &intrin, p);
         painter.drawPoint((int)std::round(pix[0]), (int)std::round(pix[1]));
     }
+    *planePixmap = pixmap;
 }
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud) const
@@ -230,7 +233,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
     pcl::SampleConsensusModelPerpendicularPlane<pcl::PointXYZ>::Ptr groundPlaneModel(new pcl::SampleConsensusModelPerpendicularPlane<pcl::PointXYZ>(pclCloud));
     pcl::RandomSampleConsensus<pcl::PointXYZ> groundPlaneRansac(groundPlaneModel);
     std::vector<int> groundPlaneInliers;
-    groundPlaneModel->setAxis(Eigen::Vector3f(0.0, -1.0, 0.0));
+    groundPlaneModel->setAxis(Eigen::Vector3f(0.0, 1.0, 0.0));
     groundPlaneModel->setEpsAngle(pointcloudoptions.ransac_angle_max * M_PI / 180.0);
     groundPlaneRansac.setDistanceThreshold(pointcloudoptions.ransac_threshold);
     groundPlaneRansac.setMaxIterations(pointcloudoptions.ransac_iterations);
@@ -324,7 +327,7 @@ try
             auto groundPlaneCloud = processPointcloud(pclCloud);
             if (paintPoints)
             {
-                projectPointsToImage(groundPlaneCloud, colorImage);
+                projectPointsToPixmap(groundPlaneCloud);
             }
             emit newFrameReady();
 
@@ -363,10 +366,19 @@ QImage RealsenseWorker::requestImage(const QString &id, QSize *size, const QSize
     if (size)
         *size = QSize(m_width, m_height);
 
-    if (id_ == "color")
-        return *colorImage;
-    else if (id_ == "depth")
-        return *depthImage;
+    QImage const *im = colorImage;
+
+    if (id_ == "depth")
+        im = depthImage;
+
+    if (paintPoints)
+    {
+        QImage img(*im);
+        QPainter p(&img);
+        p.drawPixmap(0, 0, *planePixmap);
+        return img;
+    }
+    return *im;
 
     return QPixmap(requestedSize.width(), requestedSize.height()).toImage();
 }
