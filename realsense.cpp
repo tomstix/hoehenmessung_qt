@@ -85,7 +85,7 @@ void RealsenseWorker::loadExtrinsics()
     auto t = j["translate"].get<std::vector<float>>();
 
     Matrix3f rot_matrix(r.data());
-    
+
     transform_mat->rotate(rot_matrix);
     transform_mat->translation() << t.at(0), t.at(1), t.at(2);
 
@@ -131,7 +131,7 @@ void RealsenseWorker::tare()
         qDebug() << "Could not open file!";
         return;
     }
-    
+
     QTextStream out(&extrinsicsJsonFile);
     std::stringstream ss;
     ss << transformJson;
@@ -199,13 +199,14 @@ void RealsenseWorker::projectPointsToImage(pcl::PointCloud<pcl::PointXYZ>::Ptr p
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud) const
 {
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cropped(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_downsampled(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_processed(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointCloud<pcl::PointXYZ>::Ptr groundPlaneCloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::CropBox<pcl::PointXYZ> cropBox;
     pcl::VoxelGrid<pcl::PointXYZ> downsample;
+
+    // downsample PointCloud
+    downsample.setInputCloud(pclCloud);
+    downsample.setLeafSize(pointcloudoptions.voxel_size, pointcloudoptions.voxel_size, pointcloudoptions.voxel_size);
+    downsample.filter(*pclCloud);
 
     // crop PointCloud
     Eigen::Vector4f min = {pointcloudoptions.x_min, pointcloudoptions.y_min, pointcloudoptions.z_min, 1.0F};
@@ -214,25 +215,16 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
     // transform point cloud to world coordinates
     if (tared)
     {
-        pcl::transformPointCloud(*pclCloud, *cloud_transformed, *transform_mat);
-        cropBox.setInputCloud(cloud_transformed);
+        pcl::transformPointCloud(*pclCloud, *pclCloud, *transform_mat);
     }
-    else
-    {
-        cropBox.setInputCloud(pclCloud);
-    }
-
+    
+    cropBox.setInputCloud(pclCloud);
     cropBox.setMin(min);
     cropBox.setMax(max);
-    cropBox.filter(*cloud_cropped);
-
-    // downsample PointCloud
-    downsample.setInputCloud(cloud_cropped);
-    downsample.setLeafSize(pointcloudoptions.voxel_size, pointcloudoptions.voxel_size, pointcloudoptions.voxel_size);
-    downsample.filter(*cloud_downsampled);
+    cropBox.filter(*pclCloud);
 
     // detect ground plane using ransac and perpendicular plane model
-    pcl::SampleConsensusModelPerpendicularPlane<pcl::PointXYZ>::Ptr groundPlaneModel(new pcl::SampleConsensusModelPerpendicularPlane<pcl::PointXYZ>(cloud_downsampled));
+    pcl::SampleConsensusModelPerpendicularPlane<pcl::PointXYZ>::Ptr groundPlaneModel(new pcl::SampleConsensusModelPerpendicularPlane<pcl::PointXYZ>(pclCloud));
     pcl::RandomSampleConsensus<pcl::PointXYZ> groundPlaneRansac(groundPlaneModel);
     std::vector<int> groundPlaneInliers;
     groundPlaneModel->setAxis(Eigen::Vector3f(0.0, -1.0, 0.0));
@@ -243,7 +235,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
     if (bool success = groundPlaneRansac.computeModel())
     {
         groundPlaneRansac.getInliers(groundPlaneInliers);
-        pcl::copyPointCloud(*cloud_downsampled, groundPlaneInliers, *groundPlaneCloud);
+        pcl::copyPointCloud(*pclCloud, groundPlaneInliers, *groundPlaneCloud);
 
         Eigen::VectorXf groundPlaneCoefficientsRaw;
         groundPlaneRansac.getModelCoefficients(groundPlaneCoefficientsRaw);
@@ -261,8 +253,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
     return groundPlaneCloud;
 }
 
-void RealsenseWorker::run()
-try
+void RealsenseWorker::startStreaming()
 {
     qDebug() << "Starting Realsense with " << m_width << "x" << m_height;
     cfg.enable_stream(RS2_STREAM_DEPTH, m_width, m_height, RS2_FORMAT_Z16, 30);
@@ -276,15 +267,35 @@ try
     m_isRunning = true;
     m_abortFlag = false;
     emit isRunningChanged();
+}
+
+void RealsenseWorker::stopStreaming()
+{
+    pipe->stop();
+    qDebug() << "Realsense stopped";
+    m_isRunning = false;
+    emit isRunningChanged();
+}
+
+std::shared_ptr<rs2::frameset> RealsenseWorker::wait_for_frames(unsigned int timeout) const
+{
+    auto frames = pipe->wait_for_frames(timeout);
+    return std::make_shared<rs2::frameset>(frames);
+}
+
+void RealsenseWorker::run()
+try
+{
+    startStreaming();
 
     while (!m_abortFlag)
     {
-        auto frames = pipe->wait_for_frames();
+        auto frames = wait_for_frames();
 
-        if (frames)
+        if (*frames)
         {
-            auto color_frame = frames.get_color_frame();
-            auto depth_frame = frames.get_depth_frame();
+            auto color_frame = frames->get_color_frame();
+            auto depth_frame = frames->get_depth_frame();
 
             auto vf = color_frame.as<rs2::video_frame>();
             if (color_frame.get_profile().format() == RS2_FORMAT_RGB8)
@@ -293,7 +304,10 @@ try
             }
             auto pclCloud = rsDepthFrameToPCLCloud(std::make_unique<rs2::depth_frame>(depth_frame));
             auto groundPlaneCloud = processPointcloud(pclCloud);
-            projectPointsToImage(groundPlaneCloud, colorImage);
+            if (paintPoints)
+            {
+                projectPointsToImage(groundPlaneCloud, colorImage);
+            }
 
             emit newFrameReady();
             QByteArray heightData;
@@ -307,10 +321,7 @@ try
             lastFrameTimestamp = std::chrono::high_resolution_clock::now();
         }
     }
-    pipe->stop();
-    qDebug() << "Realsense stopped";
-    m_isRunning = false;
-    emit isRunningChanged();
+    stopStreaming();
 }
 catch (const rs2::error &e)
 {

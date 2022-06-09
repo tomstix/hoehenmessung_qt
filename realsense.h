@@ -70,6 +70,7 @@ class RealsenseWorker : public QThread, public QQuickImageProvider
     Q_PROPERTY(float distanceRaw READ distanceRaw NOTIFY newFrameReady)
     Q_PROPERTY(int frameTime READ frameTime NOTIFY frameTimeChanged)
     Q_PROPERTY(bool tared MEMBER tared NOTIFY tareChanged)
+    Q_PROPERTY(bool paintPoints MEMBER paintPoints NOTIFY paintPointsChanged)
 
 public:
     RealsenseWorker() : QQuickImageProvider(QQuickImageProvider::Image)
@@ -125,12 +126,17 @@ signals:
     void pointcloudoptionsChanged();
     void frameTimeChanged();
     void tareChanged();
+    void paintPointsChanged();
     void sendCANHeight(int id, QByteArray data, bool extended);
 
 protected:
     void run() override;
 
 private:
+    void startStreaming();
+    void stopStreaming();
+    std::shared_ptr<rs2::frameset> wait_for_frames(unsigned int timeout = 15000U) const;
+
     rs2::config cfg;
     std::shared_ptr<rs2::pipeline> pipe = std::make_shared<rs2::pipeline>();
     rs2::pipeline_profile pipe_profile;
@@ -140,6 +146,8 @@ private:
     std::vector<std::vector<double>> intrinsic_matrix;
     bool m_isRunning = false;
     bool m_abortFlag = false;
+
+    bool paintPoints = true;
 
     std::shared_ptr<Eigen::Affine3f> transform_mat = std::make_shared<Eigen::Affine3f>(Eigen::Affine3f::Identity());
     bool tared = false;

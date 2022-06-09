@@ -145,7 +145,7 @@ ApplicationWindow {
                 minValue: 0.5
                 maxValue: 5.0
                 step: 0.1
-                initialValue: 2.0
+                initialValue: 2.5
                 onSliderValueChanged: {
                     Realsense.pointcloudoptions.voxel_size = value / 100.0
                 }
@@ -229,6 +229,12 @@ ApplicationWindow {
                 text: "Load Extrinsics"
                 Layout.fillWidth: true
                 onClicked: Realsense.loadExtrinsics()
+            }
+            CheckBox {
+                Layout.fillWidth: true
+                text: "Paint Points"
+                checked: true
+                onToggled: Realsense.paintPoints = checked
             }
         }
 
