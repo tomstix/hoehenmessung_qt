@@ -4,5 +4,6 @@
         <file>LabelledSlider.qml</file>
         <file>CANSettings.qml</file>
         <file>RunningPlot.qml</file>
+        <file>Controls.qml</file>
     </qresource>
 </RCC>
