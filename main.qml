@@ -3,6 +3,7 @@ import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import QtCharts 2.15
+import QtQuick.Dialogs 1.3
 
 ApplicationWindow {
     id: mainWindow
@@ -31,6 +32,10 @@ ApplicationWindow {
             MenuItem {
                 action: openCANSettings
             }
+            Action {
+                text: qsTr("&Open...")
+                onTriggered: filePicker.visible = true
+            }
             MenuSeparator { }
             Action {
                 text: qsTr("&Quit")
@@ -44,6 +49,20 @@ ApplicationWindow {
         text: qsTr("&CAN Bus Settings")
         onTriggered: {
             canSettingsLoader.source = "CANSettings.qml"
+        }
+    }
+
+    FileDialog {
+        id: filePicker
+        title: "Please choose a .bag file"
+        folder: shortcuts.desktop
+        nameFilters: ["BAG Files (*.bag)", "All Files (*)"]
+        onAccepted: {
+            Realsense.bagFile = filePicker.fileUrl
+            close()
+        }
+        onRejected: {
+            close()
         }
     }
 
@@ -101,6 +120,7 @@ ApplicationWindow {
             Layout.column: 1
             property string src: "image://realsense/color/"
             source: src + 0
+            fillMode: Image.PreserveAspectFit
             Connections {
                 target: Realsense
                 property int counter: 0
@@ -109,10 +129,8 @@ ApplicationWindow {
                     image.source = image.src + counter
                     counter = !counter
                 }
-                function onResolutionChanged()
+                function onHeightChanged()
                 {
-                    image.source = image.src + 0
-                    image.fillMode = Image.PreserveAspectFit
                     image.Layout.preferredWidth = Realsense.width
                     image.Layout.preferredHeight = Realsense.height
                 }

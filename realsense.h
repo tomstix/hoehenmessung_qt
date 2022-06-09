@@ -72,6 +72,8 @@ class RealsenseWorker : public QThread, public QQuickImageProvider
     Q_PROPERTY(int frameTime READ frameTime NOTIFY frameTimeChanged)
     Q_PROPERTY(bool tared MEMBER tared NOTIFY tareChanged)
     Q_PROPERTY(bool paintPoints MEMBER paintPoints NOTIFY paintPointsChanged)
+    Q_PROPERTY(QUrl bagFile READ bagFile WRITE setBagFile NOTIFY bagFileChanged)
+    Q_PROPERTY(bool useBag MEMBER m_useBag NOTIFY useBagChanged)
 
 public:
     RealsenseWorker() : QQuickImageProvider(QQuickImageProvider::Image)
@@ -109,6 +111,9 @@ public:
     int frameTime() const;
     QPointF heightPoint() const;
 
+    QUrl bagFile() const;
+    void setBagFile(QUrl url);
+
 public slots:
     void stop();
     void tare();
@@ -127,6 +132,8 @@ signals:
     void tareChanged();
     void paintPointsChanged();
     void newHeightPoint();
+    void bagFileChanged();
+    void useBagChanged();
     void sendCANHeight(int id, QByteArray data, bool extended);
 
 protected:
@@ -135,9 +142,10 @@ protected:
 private:
     void startStreaming();
     void stopStreaming();
-    std::shared_ptr<rs2::frameset> wait_for_frames(unsigned int timeout = 15000U) const;
+    std::shared_ptr<rs2::frameset> get_frames(unsigned int timeout = 15000U) const;
 
-    rs2::config cfg;
+    QUrl m_bagFile;
+    bool m_useBag = false;
     std::shared_ptr<rs2::pipeline> pipe = std::make_shared<rs2::pipeline>();
     rs2::pipeline_profile pipe_profile;
     Resolution res = RES_640_480;

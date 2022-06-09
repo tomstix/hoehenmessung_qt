@@ -39,9 +39,28 @@ GridLayout {
             ListElement {
                 text: "1280x720"
             }
+            ListElement {
+                text: "BAG File"
+            }
         }
         Component.onCompleted: Realsense.resolution = currentIndex
-        onCurrentIndexChanged: Realsense.resolution = currentIndex
+        onCurrentIndexChanged: {
+            if (currentIndex < 5)
+            {
+                Realsense.useBag = false
+                Realsense.resolution = currentIndex
+            }
+            else if (Realsense.bagFile.toString() != "")
+            {
+                Realsense.useBag = true
+                console.log("Using BAG File: " + Realsense.bagFile)
+            }
+            else
+            {
+                console.error("Choose BAG File first! Current file: " + Realsense.bagFile)
+                currentIndex = 3
+            }
+        }
     }
     Button {
         id: startButton

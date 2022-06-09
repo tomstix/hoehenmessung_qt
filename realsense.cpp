@@ -62,6 +62,16 @@ QPointF RealsenseWorker::heightPoint() const
 {
     return m_heightPoint;
 }
+QUrl RealsenseWorker::bagFile() const
+{
+    return m_bagFile;
+}
+void RealsenseWorker::setBagFile(QUrl url)
+{
+    m_bagFile = url;
+    qDebug() << "BAG file set to " << m_bagFile;
+    emit bagFileChanged();
+}
 int RealsenseWorker::frameTime() const
 {
     return (int)frameTime_ms.count();
@@ -261,12 +271,23 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
 
 void RealsenseWorker::startStreaming()
 {
-    qDebug() << "Starting Realsense with " << m_width << "x" << m_height;
-    cfg.enable_stream(RS2_STREAM_DEPTH, m_width, m_height, RS2_FORMAT_Z16, 30);
-    cfg.enable_stream(RS2_STREAM_COLOR, m_width, m_height, RS2_FORMAT_RGB8, 30);
-    pipe_profile = pipe->start(cfg);
-    auto sensor = pipe_profile.get_device().first<rs2::depth_sensor>();
-    sensor.set_option(RS2_OPTION_VISUAL_PRESET, RS2_RS400_VISUAL_PRESET_HIGH_ACCURACY);
+    rs2::config cfg;
+    if (m_useBag)
+    {
+        auto url = m_bagFile.toString(QUrl::RemoveScheme);
+        qDebug() << "Starting Stream from BAG file: " << url;
+        cfg.enable_device_from_file(url.toStdString());
+        pipe_profile = pipe->start(cfg);
+    }
+    else
+    {
+        qDebug() << "Starting Realsense with " << m_width << "x" << m_height;
+        cfg.enable_stream(RS2_STREAM_DEPTH, m_width, m_height, RS2_FORMAT_Z16, 30);
+        cfg.enable_stream(RS2_STREAM_COLOR, m_width, m_height, RS2_FORMAT_RGB8, 30);
+        pipe_profile = pipe->start(cfg);
+        auto sensor = pipe_profile.get_device().first<rs2::depth_sensor>();
+        sensor.set_option(RS2_OPTION_VISUAL_PRESET, RS2_RS400_VISUAL_PRESET_HIGH_ACCURACY);
+    }
     auto depth_stream = pipe_profile.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
     *intrinsics = depth_stream.get_intrinsics();
 
@@ -278,15 +299,86 @@ void RealsenseWorker::startStreaming()
 void RealsenseWorker::stopStreaming()
 {
     pipe->stop();
+    pipe = std::make_shared<rs2::pipeline>();
     qDebug() << "Realsense stopped";
     m_isRunning = false;
     emit isRunningChanged();
 }
 
-std::shared_ptr<rs2::frameset> RealsenseWorker::wait_for_frames(unsigned int timeout) const
+std::shared_ptr<rs2::frameset> RealsenseWorker::get_frames(unsigned int timeout) const
 {
     auto frames = pipe->wait_for_frames(timeout);
     return std::make_shared<rs2::frameset>(frames);
+}
+
+uchar *convert_yuyv_to_rgb(const uchar *yuyv_image, int width, int height)
+{
+    auto *rgb_image = new unsigned char[width * height * 3]; // width and height of the image to be converted
+
+    int y;
+    int cr;
+    int cb;
+
+    double r;
+    double g;
+    double b;
+
+    for (int i = 0, j = 0; i < width * height * 3; i += 6, j += 4)
+    {
+        // first pixel
+        y = yuyv_image[j];
+        cb = yuyv_image[j + 1];
+        cr = yuyv_image[j + 3];
+
+        r = y + (1.4065 * (cr - 128));
+        g = y - (0.3455 * (cb - 128)) - (0.7169 * (cr - 128));
+        b = y + (1.7790 * (cb - 128));
+
+        // This prevents colour distortions in your rgb image
+        if (r < 0)
+            r = 0;
+        else if (r > 255)
+            r = 255;
+        if (g < 0)
+            g = 0;
+        else if (g > 255)
+            g = 255;
+        if (b < 0)
+            b = 0;
+        else if (b > 255)
+            b = 255;
+
+        rgb_image[i] = (unsigned char)r;
+        rgb_image[i + 1] = (unsigned char)g;
+        rgb_image[i + 2] = (unsigned char)b;
+
+        // second pixel
+        y = yuyv_image[j + 2];
+        cb = yuyv_image[j + 1];
+        cr = yuyv_image[j + 3];
+
+        r = y + (1.4065 * (cr - 128));
+        g = y - (0.3455 * (cb - 128)) - (0.7169 * (cr - 128));
+        b = y + (1.7790 * (cb - 128));
+
+        if (r < 0)
+            r = 0;
+        else if (r > 255)
+            r = 255;
+        if (g < 0)
+            g = 0;
+        else if (g > 255)
+            g = 255;
+        if (b < 0)
+            b = 0;
+        else if (b > 255)
+            b = 255;
+
+        rgb_image[i + 3] = (unsigned char)r;
+        rgb_image[i + 4] = (unsigned char)g;
+        rgb_image[i + 5] = (unsigned char)b;
+    }
+    return rgb_image;
 }
 
 void RealsenseWorker::run()
@@ -297,17 +389,24 @@ try
 
     while (!m_abortFlag)
     {
-        auto frames = wait_for_frames();
+        auto frames = get_frames();
 
         if (*frames)
         {
             auto color_frame = frames->get_color_frame();
             auto depth_frame = frames->get_depth_frame();
 
+            m_width = color_frame.get_width();
+            m_height = color_frame.get_height();
+
             // make QImages from Color and Depth frames
             if (color_frame.get_profile().format() == RS2_FORMAT_RGB8)
             {
                 *colorImage = QImage((uchar *)color_frame.get_data(), m_width, m_height, m_width * 3, QImage::Format_RGB888);
+            }
+            else if (color_frame.get_profile().format() == RS2_FORMAT_YUYV)
+            {
+                *colorImage = QImage(convert_yuyv_to_rgb((uchar*)color_frame.get_data(), m_width, m_height), m_width, m_height, m_width * 3, QImage::Format_RGB888);
             }
             else
             {
