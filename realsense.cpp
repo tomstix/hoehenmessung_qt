@@ -1,14 +1,9 @@
 #include "realsense.h"
 
-#include <QFile>
-
-#include <Eigen/Core>
-#include <Eigen/Geometry>
-
 void RealsenseWorker::setResolution(Resolution res_)
 {
-    res = res_;
-    switch (res)
+    m_resolution = res_;
+    switch (m_resolution)
     {
     case RES_424_240:
         m_width = 424;
@@ -34,13 +29,11 @@ void RealsenseWorker::setResolution(Resolution res_)
         break;
     }
     qDebug() << "Resolution set to " << m_width << "x" << m_height;
-    emit widthChanged(m_width);
-    emit heightChanged(m_height);
     emit resolutionChanged();
 }
 RealsenseWorker::Resolution RealsenseWorker::resolution() const
 {
-    return res;
+    return m_resolution;
 }
 int RealsenseWorker::width() const
 {
@@ -307,6 +300,8 @@ void RealsenseWorker::stopStreaming()
     pipe = std::make_shared<rs2::pipeline>();
     qDebug() << "Realsense stopped";
     m_isRunning = false;
+    colorImage = std::make_shared<QImage>(640, 480, QImage::Format_RGB888);
+    depthImage = std::make_shared<QImage>(640, 480, QImage::Format_Grayscale16);
     emit isRunningChanged();
 }
 
@@ -470,7 +465,7 @@ QImage RealsenseWorker::requestImage(const QString &id, QSize *size, const QSize
     if (size)
         *size = QSize(m_width, m_height);
 
-    QImage const *im = colorImage;
+    auto im = colorImage;
 
     if (id_ == "depth")
         im = depthImage;
