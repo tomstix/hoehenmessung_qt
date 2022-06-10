@@ -88,7 +88,7 @@ void CAN::canStateChanged(QCanBusDevice::CanBusDeviceState state)
     emit deviceConnected(state == QCanBusDevice::ConnectedState);
 }
 
-void CAN::connect()
+void CAN::connectCAN()
 {
     if (deviceCreated)
     {

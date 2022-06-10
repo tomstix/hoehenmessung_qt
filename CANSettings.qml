@@ -51,7 +51,7 @@ Window {
             id: connectButton
             Layout.fillWidth: true
             text: connected ? "Disconnect" : "Connect"
-            onPressed: CAN.connect()
+            onPressed: CAN.connectCAN()
         }
     }
 

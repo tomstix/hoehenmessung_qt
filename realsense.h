@@ -7,6 +7,7 @@
 #include <QQuickImageProvider>
 #include <QDebug>
 #include <QThread>
+#include <QFile>
 
 #include <librealsense2/rs.hpp>
 
@@ -19,6 +20,7 @@
 #include <pcl/sample_consensus/sac_model_perpendicular_plane.h>
 
 #include <Eigen/Core>
+#include <Eigen/Geometry>
 
 #include <nlohmann/json.hpp>
 
@@ -63,8 +65,8 @@ class RealsenseWorker : public QThread, public QQuickImageProvider
 {
     Q_OBJECT
     Q_PROPERTY(Resolution resolution READ resolution WRITE setResolution NOTIFY resolutionChanged)
-    Q_PROPERTY(int width READ width NOTIFY widthChanged)
-    Q_PROPERTY(int height READ height NOTIFY heightChanged)
+    Q_PROPERTY(int width READ width NOTIFY resolutionChanged)
+    Q_PROPERTY(int height READ height NOTIFY resolutionChanged)
     Q_PROPERTY(bool running READ running NOTIFY isRunningChanged)
     Q_PROPERTY(PointcloudOptions pointcloudoptions READ pointcloudoptions WRITE setPointcloudoptions NOTIFY pointcloudoptionsChanged)
     Q_PROPERTY(float distanceRaw READ distanceRaw NOTIFY newFrameReady)
@@ -121,8 +123,6 @@ public slots:
     void loadExtrinsics();
 
 signals:
-    void heightChanged(const int h);
-    void widthChanged(const int w);
     void resolutionChanged();
     void isRunningChanged();
     void newFrameReady();
@@ -151,7 +151,7 @@ private:
     bool m_useBag = false;
     std::shared_ptr<rs2::pipeline> pipe = std::make_shared<rs2::pipeline>();
     rs2::pipeline_profile pipe_profile;
-    Resolution res = RES_640_480;
+    Resolution m_resolution = RES_640_480;
     int m_width;
     int m_height;
     std::vector<std::vector<double>> intrinsic_matrix;
@@ -164,8 +164,8 @@ private:
     std::shared_ptr<Eigen::Affine3f> transform_mat_inv = std::make_shared<Eigen::Affine3f>(Eigen::Affine3f::Identity());
     bool m_tared = false;
 
-    QImage *colorImage = new QImage(640, 480, QImage::Format_RGB888);
-    QImage *depthImage = new QImage(640, 480, QImage::Format_Grayscale16);
+    std::shared_ptr<QImage> colorImage = std::make_shared<QImage>(640, 480, QImage::Format_RGB888);
+    std::shared_ptr<QImage> depthImage = std::make_shared<QImage>(640, 480, QImage::Format_Grayscale16);
     std::shared_ptr<QPixmap> planePixmap = std::make_shared<QPixmap>();
 
     std::chrono::_V2::system_clock::time_point m_lastFrameTimestamp = std::chrono::high_resolution_clock::now();

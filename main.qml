@@ -129,7 +129,7 @@ ApplicationWindow {
                     image.source = image.src + counter
                     counter = !counter
                 }
-                function onHeightChanged()
+                function onResolutionChanged()
                 {
                     image.Layout.preferredWidth = Realsense.width
                     image.Layout.preferredHeight = Realsense.height
