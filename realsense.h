@@ -66,12 +66,12 @@ class RealsenseWorker : public QThread, public QQuickImageProvider
     Q_PROPERTY(int width READ width NOTIFY widthChanged)
     Q_PROPERTY(int height READ height NOTIFY heightChanged)
     Q_PROPERTY(bool running READ running NOTIFY isRunningChanged)
-    Q_PROPERTY(PointcloudOptions pointcloudoptions READ getPointcloudoptions WRITE setPointcloudoptions NOTIFY pointcloudoptionsChanged)
+    Q_PROPERTY(PointcloudOptions pointcloudoptions READ pointcloudoptions WRITE setPointcloudoptions NOTIFY pointcloudoptionsChanged)
     Q_PROPERTY(float distanceRaw READ distanceRaw NOTIFY newFrameReady)
     Q_PROPERTY(QPointF heightPoint READ heightPoint NOTIFY newHeightPoint)
     Q_PROPERTY(int frameTime READ frameTime NOTIFY frameTimeChanged)
-    Q_PROPERTY(bool tared MEMBER tared NOTIFY tareChanged)
-    Q_PROPERTY(bool paintPoints MEMBER paintPoints NOTIFY paintPointsChanged)
+    Q_PROPERTY(bool tared MEMBER m_tared NOTIFY tareChanged)
+    Q_PROPERTY(bool paintPoints MEMBER m_paintPoints NOTIFY paintPointsChanged)
     Q_PROPERTY(QUrl bagFile READ bagFile WRITE setBagFile NOTIFY bagFileChanged)
     Q_PROPERTY(bool useBag MEMBER m_useBag NOTIFY useBagChanged)
 
@@ -94,13 +94,13 @@ public:
     void setResolution(Resolution res_);
     Resolution resolution() const;
 
-    PointcloudOptions getPointcloudoptions() const
+    PointcloudOptions pointcloudoptions() const
     {
-        return pointcloudoptions;
+        return m_pointcloudoptions;
     }
-    void setPointcloudoptions(PointcloudOptions po)
+    void setPointcloudoptions(PointcloudOptions const& po)
     {
-        pointcloudoptions = po;
+        m_pointcloudoptions = po;
         emit pointcloudoptionsChanged();
     }
 
@@ -129,7 +129,7 @@ signals:
     void statusStringChanged();
     void pointcloudoptionsChanged();
     void frameTimeChanged();
-    void tareChanged();
+    void tareChanged(bool isTared);
     void paintPointsChanged();
     void newHeightPoint();
     void bagFileChanged();
@@ -138,10 +138,13 @@ signals:
 
 protected:
     void run() override;
-
-private:
     void startStreaming();
     void stopStreaming();
+    pcl::PointCloud<pcl::PointXYZ>::Ptr rsDepthFrameToPCLCloud(std::unique_ptr<rs2::depth_frame> depth_frame) const;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr processPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr) const;
+    void projectPointsToPixmap(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud) const;
+
+private:
     std::shared_ptr<rs2::frameset> get_frames(unsigned int timeout = 15000U) const;
 
     QUrl m_bagFile;
@@ -155,24 +158,22 @@ private:
     bool m_isRunning = false;
     bool m_abortFlag = false;
 
-    bool paintPoints = true;
+    bool m_paintPoints = true;
 
     std::shared_ptr<Eigen::Affine3f> transform_mat = std::make_shared<Eigen::Affine3f>(Eigen::Affine3f::Identity());
-    bool tared = false;
+    std::shared_ptr<Eigen::Affine3f> transform_mat_inv = std::make_shared<Eigen::Affine3f>(Eigen::Affine3f::Identity());
+    bool m_tared = false;
 
-    QImage *colorImage = new QImage(1280, 720, QImage::Format_RGB888);
-    QImage *depthImage = new QImage(1280, 720, QImage::Format_Grayscale16);
+    QImage *colorImage = new QImage(640, 480, QImage::Format_RGB888);
+    QImage *depthImage = new QImage(640, 480, QImage::Format_Grayscale16);
     std::shared_ptr<QPixmap> planePixmap = std::make_shared<QPixmap>();
-    std::chrono::_V2::system_clock::time_point lastFrameTimestamp = std::chrono::high_resolution_clock::now();
-    std::chrono::milliseconds frameTime_ms = std::chrono::milliseconds::zero();
+
+    std::chrono::_V2::system_clock::time_point m_lastFrameTimestamp = std::chrono::high_resolution_clock::now();
+    std::chrono::milliseconds m_frameTime_ms = std::chrono::milliseconds::zero();
 
     QPointF m_heightPoint;
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr rsDepthFrameToPCLCloud(std::unique_ptr<rs2::depth_frame> depth_frame) const;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr processPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr) const;
-    void projectPointsToPixmap(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud) const;
-
     std::shared_ptr<Eigen::Vector4f> groundPlaneCoefficients = std::make_shared<Eigen::Vector4f>(0, 0, 0, 0);
     std::shared_ptr<rs2_intrinsics> intrinsics = std::make_shared<rs2_intrinsics>();
-    PointcloudOptions pointcloudoptions;
+    PointcloudOptions m_pointcloudoptions;
 };

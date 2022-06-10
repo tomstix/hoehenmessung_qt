@@ -74,7 +74,7 @@ void RealsenseWorker::setBagFile(QUrl url)
 }
 int RealsenseWorker::frameTime() const
 {
-    return (int)frameTime_ms.count();
+    return (int)m_frameTime_ms.count();
 }
 void RealsenseWorker::stop()
 {
@@ -102,9 +102,10 @@ void RealsenseWorker::loadExtrinsics()
 
     transform_mat->rotate(rot_matrix);
     transform_mat->translation() << t.at(0), t.at(1), t.at(2);
+    transform_mat_inv = std::make_shared<Affine3f>(transform_mat->inverse());
 
-    tared = true;
-    emit tareChanged();
+    m_tared = true;
+    emit tareChanged(m_tared);
 }
 void RealsenseWorker::tare()
 {
@@ -125,9 +126,8 @@ void RealsenseWorker::tare()
 
     transform_mat->rotate(rot_matrix);
     transform_mat->translation() << 0.0, -dist, 0.0;
+    transform_mat_inv = std::make_shared<Affine3f>(transform_mat->inverse());
 
-    pointcloudoptions.y_min = -2.0F;
-    pointcloudoptions.y_max = 2.0F;
     groundPlaneCoefficients->w() = 0.0F;
 
     std::vector<float> rotateVec(rot_matrix.data(), rot_matrix.data() + rot_matrix.size());
@@ -150,17 +150,15 @@ void RealsenseWorker::tare()
     std::stringstream ss;
     ss << transformJson;
     out << QString::fromStdString(ss.str());
-    tared = true;
-    emit tareChanged();
+    m_tared = true;
+    emit tareChanged(m_tared);
 }
 
 void RealsenseWorker::resetTare()
 {
     *transform_mat = Eigen::Affine3f::Identity().inverse();
-    pointcloudoptions.y_min = 0.0F;
-    pointcloudoptions.y_max = 5.5F;
-    tared = false;
-    emit tareChanged();
+    m_tared = false;
+    emit tareChanged(m_tared);
 }
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::rsDepthFrameToPCLCloud(std::unique_ptr<rs2::depth_frame> depth_frame) const
@@ -191,16 +189,16 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::rsDepthFrameToPCLCloud(std:
 
 void RealsenseWorker::projectPointsToPixmap(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud) const
 {
-    if (tared)
+    if (m_tared)
     {
-        pcl::transformPointCloud(*pclCloud, *pclCloud, transform_mat->inverse());
+        pcl::transformPointCloud(*pclCloud, *pclCloud, *transform_mat_inv);
     }
     QPixmap pixmap(m_width, m_height);
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
     QPen pen = painter.pen();
     pen.setColor(Qt::red);
-    pen.setWidthF(pointcloudoptions.voxel_size * 100.0F);
+    pen.setWidthF(m_pointcloudoptions.voxel_size * 100.0F);
     painter.setPen(pen);
 #pragma omp parallel for default(none) shared(image, pclCloud)
     for (auto point : pclCloud->points)
@@ -220,33 +218,40 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
     pcl::CropBox<pcl::PointXYZ> cropBox;
     pcl::VoxelGrid<pcl::PointXYZ> downsample;
 
-    // downsample PointCloud
-    downsample.setInputCloud(pclCloud);
-    downsample.setLeafSize(pointcloudoptions.voxel_size, pointcloudoptions.voxel_size, pointcloudoptions.voxel_size);
-    downsample.filter(*pclCloud);
-
-    // transform point cloud to vehicle coordinates
-    if (tared)
-    {
-        pcl::transformPointCloud(*pclCloud, *pclCloud, *transform_mat);
-    }
-
     // crop PointCloud
-    Eigen::Vector4f min = {pointcloudoptions.x_min, pointcloudoptions.y_min, pointcloudoptions.z_min, 1.0F};
-    Eigen::Vector4f max = {pointcloudoptions.x_max, pointcloudoptions.y_max, pointcloudoptions.z_max, 1.0F};
+    Eigen::Vector4f min = {m_pointcloudoptions.x_min, m_pointcloudoptions.y_min, m_pointcloudoptions.z_min, 1.0F};
+    Eigen::Vector4f max = {m_pointcloudoptions.x_max, m_pointcloudoptions.y_max, m_pointcloudoptions.z_max, 1.0F};
+    min = transform_mat->matrix() * min;
+    max = transform_mat->matrix() * max;
+    // reset x and y values
+    min(0) = m_pointcloudoptions.x_min;
+    max(0) = m_pointcloudoptions.x_max;
+    min(1) = m_pointcloudoptions.y_min;
+    max(1) = m_pointcloudoptions.y_max;
     cropBox.setInputCloud(pclCloud);
     cropBox.setMin(min);
     cropBox.setMax(max);
     cropBox.filter(*pclCloud);
+
+    // downsample PointCloud
+    downsample.setInputCloud(pclCloud);
+    downsample.setLeafSize(m_pointcloudoptions.voxel_size, m_pointcloudoptions.voxel_size, m_pointcloudoptions.voxel_size);
+    downsample.filter(*pclCloud);
+
+    // transform point cloud to vehicle coordinates
+    if (m_tared)
+    {
+        pcl::transformPointCloud(*pclCloud, *pclCloud, *transform_mat);
+    }
 
     // detect ground plane using ransac and perpendicular plane model
     pcl::SampleConsensusModelPerpendicularPlane<pcl::PointXYZ>::Ptr groundPlaneModel(new pcl::SampleConsensusModelPerpendicularPlane<pcl::PointXYZ>(pclCloud));
     pcl::RandomSampleConsensus<pcl::PointXYZ> groundPlaneRansac(groundPlaneModel);
     std::vector<int> groundPlaneInliers;
     groundPlaneModel->setAxis(Eigen::Vector3f(0.0, 1.0, 0.0));
-    groundPlaneModel->setEpsAngle(pointcloudoptions.ransac_angle_max * M_PI / 180.0);
-    groundPlaneRansac.setDistanceThreshold(pointcloudoptions.ransac_threshold);
-    groundPlaneRansac.setMaxIterations(pointcloudoptions.ransac_iterations);
+    groundPlaneModel->setEpsAngle(m_pointcloudoptions.ransac_angle_max * M_PI / 180.0);
+    groundPlaneRansac.setDistanceThreshold(m_pointcloudoptions.ransac_threshold);
+    groundPlaneRansac.setMaxIterations(m_pointcloudoptions.ransac_iterations);
     groundPlaneRansac.setNumberOfThreads(0);
     if (bool success = groundPlaneRansac.computeModel())
     {
@@ -263,7 +268,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
         }
 
         // moving average of plane equation
-        *groundPlaneCoefficients = (Eigen::Vector4f)(groundPlaneCoefficientsRaw.head<4>() * pointcloudoptions.ma_alpha + *groundPlaneCoefficients * (1.0F - pointcloudoptions.ma_alpha));
+        *groundPlaneCoefficients = (Eigen::Vector4f)(groundPlaneCoefficientsRaw.head<4>() * m_pointcloudoptions.ma_alpha + *groundPlaneCoefficients * (1.0F - m_pointcloudoptions.ma_alpha));
     }
 
     return groundPlaneCloud;
@@ -311,7 +316,7 @@ std::shared_ptr<rs2::frameset> RealsenseWorker::get_frames(unsigned int timeout)
     return std::make_shared<rs2::frameset>(frames);
 }
 
-uchar *convert_yuyv_to_rgb(const uchar *yuyv_image, int width, int height)
+uchar *convert_yuyv_to_rgb(const uchar *yuyv_image, int width, int height) // https://stackoverflow.com/questions/9098881/convert-from-yuv-to-rgb-in-c-android-ndk
 {
     auto *rgb_image = new unsigned char[width * height * 3]; // width and height of the image to be converted
 
@@ -424,7 +429,7 @@ try
             // Point Cloud Processing
             auto pclCloud = rsDepthFrameToPCLCloud(std::make_unique<rs2::depth_frame>(depth_frame));
             auto groundPlaneCloud = processPointcloud(pclCloud);
-            if (paintPoints)
+            if (m_paintPoints)
             {
                 projectPointsToPixmap(groundPlaneCloud);
             }
@@ -438,9 +443,9 @@ try
 
             // calculate frame time
             auto time_now = std::chrono::high_resolution_clock::now();
-            frameTime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - lastFrameTimestamp);
+            m_frameTime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - m_lastFrameTimestamp);
             emit frameTimeChanged();
-            lastFrameTimestamp = time_now;
+            m_lastFrameTimestamp = time_now;
 
             auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - start_time);
             long timestamp = now_ms.count();
@@ -470,7 +475,7 @@ QImage RealsenseWorker::requestImage(const QString &id, QSize *size, const QSize
     if (id_ == "depth")
         im = depthImage;
 
-    if (paintPoints)
+    if (m_paintPoints)
     {
         QImage img(*im);
         QPainter p(&img);

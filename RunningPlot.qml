@@ -45,7 +45,7 @@ ChartView {
             yAxis.max = yMax + 0.1
         }
         function onRunningChanged() {
-            if (!Realsense.running)
+            if (Realsense.running)
             {
                 lineSeries.removePoints(0, lineSeries.count)
             }
