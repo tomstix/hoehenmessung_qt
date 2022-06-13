@@ -25,6 +25,9 @@ ApplicationWindow {
     Loader {
         id: canSettingsLoader
     }
+    Loader {
+        id: profileViewLoader
+    }
 
     menuBar: MenuBar {
         Menu {
@@ -40,6 +43,15 @@ ApplicationWindow {
             Action {
                 text: qsTr("&Quit")
                 onTriggered: mainWindow.close()
+            }
+        }
+        Menu {
+            title: qsTr("Options")
+            Action {
+                text: qsTr("Profile Viewer")
+                onTriggered: {
+                    profileViewLoader.source = "ProfileView.qml"
+                }
             }
         }
     }

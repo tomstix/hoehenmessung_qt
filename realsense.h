@@ -126,7 +126,6 @@ signals:
     void resolutionChanged();
     void isRunningChanged();
     void newFrameReady();
-    void statusStringChanged();
     void pointcloudoptionsChanged();
     void frameTimeChanged();
     void tareChanged(bool isTared);

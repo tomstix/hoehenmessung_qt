@@ -5,5 +5,6 @@
         <file>CANSettings.qml</file>
         <file>RunningPlot.qml</file>
         <file>Controls.qml</file>
+        <file>ProfileView.qml</file>
     </qresource>
 </RCC>

@@ -78,6 +78,8 @@ void RealsenseWorker::loadExtrinsics()
     using json = nlohmann::json;
     using namespace Eigen;
 
+    qDebug() << "Loading extrinsics";
+
     QFile extrinsicsJsonFile("extrinsics.json");
     if (!extrinsicsJsonFile.open(QIODevice::ReadOnly))
     {
@@ -261,7 +263,8 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
         }
 
         // moving average of plane equation
-        *groundPlaneCoefficients = (Eigen::Vector4f)(groundPlaneCoefficientsRaw.head<4>() * m_pointcloudoptions.ma_alpha + *groundPlaneCoefficients * (1.0F - m_pointcloudoptions.ma_alpha));
+        *groundPlaneCoefficients = (Eigen::Vector4f)(groundPlaneCoefficientsRaw.head<4>() * m_pointcloudoptions.ma_alpha
+                                                    + *groundPlaneCoefficients * (1.0F - m_pointcloudoptions.ma_alpha));
     }
 
     return groundPlaneCloud;
@@ -384,6 +387,7 @@ uchar *convert_yuyv_to_rgb(const uchar *yuyv_image, int width, int height) // ht
 void RealsenseWorker::run()
 try
 {
+    loadExtrinsics();
     startStreaming();
     auto start_time = std::chrono::system_clock::now();
 

@@ -13,8 +13,8 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Quick SerialBus Charts)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Quick SerialBus Charts)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Quick SerialBus Charts DataVisualization)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Quick SerialBus Charts DataVisualization)
 find_package(PCL REQUIRED)
 find_package(realsense2 REQUIRED)
 
@@ -30,6 +30,7 @@ set(PROJECT_SOURCES
         qml.qrc
         realsense.h realsense.cpp
         can.h can.cpp
+        datavisualizer.h datavisualizer.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -62,6 +63,7 @@ target_link_libraries(hoehenmessung PRIVATE
                         Qt${QT_VERSION_MAJOR}::Quick
                         Qt${QT_VERSION_MAJOR}::SerialBus
                         Qt${QT_VERSION_MAJOR}::Charts
+                        Qt${QT_VERSION_MAJOR}::DataVisualization
                         ${PCL_LIBRARIES}
                         ${realsense2_LIBRARY}
                         nlohmann_json::nlohmann_json

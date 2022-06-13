@@ -4,6 +4,7 @@
 
 #include "realsense.h"
 #include "can.h"
+#include "datavisualizer.h"
 
 
 int main(int argc, char *argv[])
@@ -27,6 +28,9 @@ int main(int argc, char *argv[])
 
     auto canBus = new CAN;
     engine.rootContext()->setContextProperty("CAN", canBus);
+
+    auto datavisualizer = new DataVisualizer;
+    engine.rootContext()->setContextProperty("DataVisualizer", datavisualizer);
 
     QObject::connect(realsenseWorker, &RealsenseWorker::sendCANHeight, canBus, &CAN::sendCANMessage);
 
