@@ -165,6 +165,7 @@ private:
 
     std::shared_ptr<QImage> colorImage = std::make_shared<QImage>(640, 480, QImage::Format_RGB888);
     std::shared_ptr<QImage> depthImage = std::make_shared<QImage>(640, 480, QImage::Format_Grayscale16);
+    std::shared_ptr<QImage> infraredImage = std::make_shared<QImage>(640, 480, QImage::Format_RGB888);
     std::shared_ptr<QPixmap> planePixmap = std::make_shared<QPixmap>();
 
     std::chrono::_V2::system_clock::time_point m_lastFrameTimestamp = std::chrono::high_resolution_clock::now();

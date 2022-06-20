@@ -284,7 +284,8 @@ void RealsenseWorker::startStreaming()
     {
         qDebug() << "Starting Realsense with " << m_width << "x" << m_height;
         cfg.enable_stream(RS2_STREAM_DEPTH, m_width, m_height, RS2_FORMAT_Z16, 30);
-        cfg.enable_stream(RS2_STREAM_COLOR, m_width, m_height, RS2_FORMAT_RGB8, 30);
+        cfg.enable_stream(RS2_STREAM_COLOR, m_width, m_height, RS2_FORMAT_YUYV, 30);
+        cfg.enable_stream(RS2_STREAM_INFRARED, 1, m_width, m_height, RS2_FORMAT_Y8, 30);
         pipe_profile = pipe->start(cfg);
         auto sensor = pipe_profile.get_device().first<rs2::depth_sensor>();
         sensor.set_option(RS2_OPTION_VISUAL_PRESET, RS2_RS400_VISUAL_PRESET_HIGH_ACCURACY);
@@ -305,6 +306,7 @@ void RealsenseWorker::stopStreaming()
     m_isRunning = false;
     colorImage = std::make_shared<QImage>(640, 480, QImage::Format_RGB888);
     depthImage = std::make_shared<QImage>(640, 480, QImage::Format_Grayscale16);
+    infraredImage = std::make_shared<QImage>(640, 480, QImage::Format_RGB888);
     emit isRunningChanged();
 }
 
@@ -399,6 +401,7 @@ try
         {
             auto color_frame = frames->get_color_frame();
             auto depth_frame = frames->get_depth_frame();
+            auto ir_frame = frames->get_infrared_frame(1);
 
             m_width = color_frame.get_width();
             m_height = color_frame.get_height();
@@ -423,6 +426,10 @@ try
             else
             {
                 qDebug() << "Wrong format for depth frame!";
+            }
+            if (ir_frame.get_profile().format() == RS2_FORMAT_Y8)
+            {
+                *infraredImage = QImage((uchar *)ir_frame.get_data(), m_width, m_height, m_width, QImage::Format_Grayscale8);
             }
 
             // Point Cloud Processing
@@ -473,6 +480,8 @@ QImage RealsenseWorker::requestImage(const QString &id, QSize *size, const QSize
 
     if (id_ == "depth")
         im = depthImage;
+    else if (id_ == "infrared")
+        im = infraredImage;
 
     if (m_paintPoints)
     {

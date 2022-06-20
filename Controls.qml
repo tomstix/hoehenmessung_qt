@@ -220,8 +220,21 @@ GridLayout {
             ListElement {
                 text: "Depth Image"
             }
+            ListElement {
+                text: "Infrared Image"
+            }
         }
-        onCurrentIndexChanged: image.src = currentIndex ? "image://realsense/depth/": "image://realsense/color/"
+        onCurrentIndexChanged: {
+            if (currentIndex == 0) {
+                image.src = "image://realsense/color/"
+            }
+            if (currentIndex == 1) {
+                image.src = "image://realsense/depth/"
+            }
+            if (currentIndex == 2) {
+                image.src = "image://realsense/infrared/"
+            }
+        }
     }
     Label {
         Layout.alignment: Qt.AlignHCenter
