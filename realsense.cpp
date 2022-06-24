@@ -1,5 +1,7 @@
 #include "realsense.h"
 
+#include <librealsense2/rsutil.h>
+
 void RealsenseWorker::setResolution(Resolution res_)
 {
     m_resolution = res_;
