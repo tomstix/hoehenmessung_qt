@@ -14,6 +14,9 @@ int main(int argc, char *argv[])
 #endif
     QApplication app(argc, argv);
 
+    app.setOrganizationName("Zuern Harvesting");
+    app.setOrganizationDomain("zuern.de");
+
     QQmlApplicationEngine engine;
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
