@@ -1,9 +1,9 @@
 import QtQuick 2.12
 import QtQuick.Controls 2.12
 import QtQuick.Layouts 1.12
+import QtQuick.Dialogs 1.3
 
 GridLayout {
-
     Connections {
         target: Realsense
         function onIsRunningChanged()
@@ -12,6 +12,20 @@ GridLayout {
             startButton.enabled = !Realsense.running
             stopButton.enabled = Realsense.running
             tareButton.enabled = Realsense.running
+        }
+    }
+
+    FileDialog {
+        id: recordFilePicker
+        title: "Please choose a location"
+        folder: shortcuts.desktop
+        selectFolder: true
+        onAccepted: {
+            Realsense.recordFile = recordFilePicker.fileUrl
+            close()
+        }
+        onRejected: {
+            close()
         }
     }
 
@@ -81,6 +95,45 @@ GridLayout {
         }
         Component.onCompleted: enabled = false
     }
+    CheckBox {
+        id: proccessPointsBox
+        Layout.fillWidth: true
+        text: "Process Points"
+        checked: false
+        Component.onCompleted: {
+            Realsense.processPoints = checked
+        }
+        onToggled: {
+            Realsense.processPoints = checked
+        }
+    }
+    CheckBox {
+        id: recordCheckBox
+        Layout.fillWidth: true
+        text: "Record"
+        checked: false
+        onToggled: {
+            Realsense.record = checked
+        }
+        enabled: !Realsense.running
+    }
+    Label {
+        Layout.fillWidth: true
+        Layout.minimumHeight: 30
+        id: recordFileLabel
+        text: "Choose record location"
+        visible: recordCheckBox.checked
+        MouseArea{
+            anchors.fill: parent
+            onClicked: recordFilePicker.visible = true
+        }
+        Connections {
+            target: Realsense
+            function onRecordFileChanged() {
+                recordFileLabel.text = Realsense.recordFile
+            }
+        }
+    }
     LabelledSlider {
         labeltext: "min. Z Distance"
         unitSuffix: " m"
@@ -91,6 +144,8 @@ GridLayout {
         onSliderValueChanged: {
             Realsense.pointcloudoptions.z_min = value
         }
+        enabled: proccessPointsBox.checked
+        visible: proccessPointsBox.checked
     }
     LabelledSlider {
         labeltext: "max. Z Distance"
@@ -102,6 +157,8 @@ GridLayout {
         onSliderValueChanged: {
             Realsense.pointcloudoptions.z_max = value
         }
+        enabled: proccessPointsBox.checked
+        visible: proccessPointsBox.checked
     }
     LabelledSlider {
         labeltext: "X width"
@@ -114,6 +171,8 @@ GridLayout {
             Realsense.pointcloudoptions.x_min = -value/2.0
             Realsense.pointcloudoptions.x_max = value/2.0
         }
+        enabled: proccessPointsBox.checked
+        visible: proccessPointsBox.checked
     }
     LabelledSlider {
         labeltext: "Voxel size"
@@ -125,6 +184,8 @@ GridLayout {
         onSliderValueChanged: {
             Realsense.pointcloudoptions.voxel_size = value / 100.0
         }
+        enabled: proccessPointsBox.checked
+        visible: proccessPointsBox.checked
     }
     LabelledSlider {
         labeltext: "RANSAC Threshold"
@@ -136,6 +197,8 @@ GridLayout {
         onSliderValueChanged: {
             Realsense.pointcloudoptions.ransac_threshold = value / 100.0
         }
+        enabled: proccessPointsBox.checked
+        visible: proccessPointsBox.checked
     }
     LabelledSlider {
         labeltext: "Plane angle max."
@@ -147,6 +210,8 @@ GridLayout {
         onSliderValueChanged: {
             Realsense.pointcloudoptions.ransac_angle_max = value
         }
+        enabled: proccessPointsBox.checked
+        visible: proccessPointsBox.checked
     }
     LabelledSlider {
         labeltext: "RANSAC iterations"
@@ -157,6 +222,8 @@ GridLayout {
         onSliderValueChanged: {
             Realsense.pointcloudoptions.ransac_iterations = value
         }
+        enabled: proccessPointsBox.checked
+        visible: proccessPointsBox.checked
     }
     LabelledSlider {
         labeltext: "Filter Alpha"
@@ -167,6 +234,8 @@ GridLayout {
         onSliderValueChanged: {
             Realsense.pointcloudoptions.ma_alpha = value
         }
+        enabled: proccessPointsBox.checked
+        visible: proccessPointsBox.checked
     }
     Button {
         id: resetTareButton
@@ -181,6 +250,8 @@ GridLayout {
                 resetTareButton.enabled = Realsense.tared
             }
         }
+        enabled: proccessPointsBox.checked
+        visible: proccessPointsBox.checked
     }
     Button {
         id: tareButton
@@ -195,18 +266,24 @@ GridLayout {
                 tareButton.enabled = !Realsense.tared
             }
         }
+        enabled: proccessPointsBox.checked
+        visible: proccessPointsBox.checked
     }
     Button {
         id: loadExtrinsicsButton
         text: "Load Extrinsics"
         Layout.fillWidth: true
         onClicked: Realsense.loadExtrinsics()
+        enabled: proccessPointsBox.checked
+        visible: proccessPointsBox.checked
     }
     CheckBox {
         Layout.fillWidth: true
         text: "Paint Points"
-        checked: true
+        checked: false
         onToggled: Realsense.paintPoints = checked
+        enabled: proccessPointsBox.checked
+        visible: proccessPointsBox.checked
     }
     ComboBox {
         id: imageSelector
@@ -237,19 +314,23 @@ GridLayout {
         }
     }
     Label {
-        Layout.alignment: Qt.AlignHCenter
+        Layout.alignment: Qt.AlignHCenter | Qt.AlignLeft
         Layout.fillWidth: true
         property string textc: "Nothing received yet"
         id: distanceLabel
         text: "Raw height: " + Realsense.distanceRaw.toLocaleString(Qt.locale("de_DE"), 'f', 2) + " m"
         horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignLeft
+        visible: proccessPointsBox.checked
     }
     Label {
-        Layout.alignment: Qt.AlignHCenter
+        Layout.alignment: Qt.AlignHCenter | Qt.AlignRight
         Layout.fillWidth: true
+        Layout.columnSpan: proccessPointsBox.checked ? 1:2
         property string textc: "Nothing received yet"
         id: frametimeLabel
         text: "Frame time: " + Realsense.frameTime.toLocaleString(Qt.locale("de_DE"), 'f', 0) + " ms"
         horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignRight
     }
 }

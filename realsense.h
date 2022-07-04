@@ -74,7 +74,10 @@ class RealsenseWorker : public QThread, public QQuickImageProvider
     Q_PROPERTY(int frameTime READ frameTime NOTIFY frameTimeChanged)
     Q_PROPERTY(bool tared MEMBER m_tared NOTIFY tareChanged)
     Q_PROPERTY(bool paintPoints MEMBER m_paintPoints NOTIFY paintPointsChanged)
+    Q_PROPERTY(bool processPoints MEMBER m_processPoints NOTIFY processPointsChanged)
+    Q_PROPERTY(bool record MEMBER m_record NOTIFY recordChanged)
     Q_PROPERTY(QUrl bagFile READ bagFile WRITE setBagFile NOTIFY bagFileChanged)
+    Q_PROPERTY(QUrl recordFile READ recordFile WRITE setRecordFile NOTIFY recordFileChanged)
     Q_PROPERTY(bool useBag MEMBER m_useBag NOTIFY useBagChanged)
 
 public:
@@ -116,6 +119,9 @@ public:
     QUrl bagFile() const;
     void setBagFile(QUrl url);
 
+    QUrl recordFile() const;
+    void setRecordFile(QUrl url);
+
 public slots:
     void stop();
     void tare();
@@ -130,8 +136,11 @@ signals:
     void frameTimeChanged();
     void tareChanged(bool isTared);
     void paintPointsChanged();
+    void processPointsChanged();
+    void recordChanged();
     void newHeightPoint();
     void bagFileChanged();
+    void recordFileChanged();
     void useBagChanged();
     void sendCANHeight(int id, QByteArray data, bool extended);
 
@@ -157,7 +166,11 @@ private:
     bool m_isRunning = false;
     bool m_abortFlag = false;
 
+    bool m_processPoints = false;
     bool m_paintPoints = true;
+
+    QUrl m_recordFile;
+    bool m_record = false;
 
     std::shared_ptr<Eigen::Affine3f> transform_mat = std::make_shared<Eigen::Affine3f>(Eigen::Affine3f::Identity());
     std::shared_ptr<Eigen::Affine3f> transform_mat_inv = std::make_shared<Eigen::Affine3f>(Eigen::Affine3f::Identity());

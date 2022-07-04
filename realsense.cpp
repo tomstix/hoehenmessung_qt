@@ -67,6 +67,16 @@ void RealsenseWorker::setBagFile(QUrl url)
     qDebug() << "BAG file set to " << m_bagFile;
     emit bagFileChanged();
 }
+QUrl RealsenseWorker::recordFile() const
+{
+    return m_recordFile;
+}
+void RealsenseWorker::setRecordFile(QUrl url)
+{
+    m_recordFile = url;
+    qDebug() << "BAG file set to " << m_recordFile;
+    emit recordFileChanged();
+}
 int RealsenseWorker::frameTime() const
 {
     return (int)m_frameTime_ms.count();
@@ -274,30 +284,58 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
 
 void RealsenseWorker::startStreaming()
 {
-    rs2::config cfg;
-    if (m_useBag)
+    try 
     {
-        auto url = m_bagFile.toString(QUrl::RemoveScheme);
-        qDebug() << "Starting Stream from BAG file: " << url;
-        cfg.enable_device_from_file(url.toStdString());
-        pipe_profile = pipe->start(cfg);
-    }
-    else
-    {
-        qDebug() << "Starting Realsense with " << m_width << "x" << m_height;
-        cfg.enable_stream(RS2_STREAM_DEPTH, m_width, m_height, RS2_FORMAT_Z16, 30);
-        cfg.enable_stream(RS2_STREAM_COLOR, m_width, m_height, RS2_FORMAT_YUYV, 30);
-        cfg.enable_stream(RS2_STREAM_INFRARED, 1, m_width, m_height, RS2_FORMAT_Y8, 30);
-        pipe_profile = pipe->start(cfg);
-        auto sensor = pipe_profile.get_device().first<rs2::depth_sensor>();
-        sensor.set_option(RS2_OPTION_VISUAL_PRESET, RS2_RS400_VISUAL_PRESET_HIGH_ACCURACY);
-    }
-    auto depth_stream = pipe_profile.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
-    *intrinsics = depth_stream.get_intrinsics();
+        rs2::config cfg;
+        if (m_useBag)
+        {
+            auto url = m_bagFile.toString(QUrl::RemoveScheme);
+            qDebug() << "Starting Stream from BAG file: " << url;
+            cfg.enable_device_from_file(url.toStdString());
+            pipe_profile = pipe->start(cfg);
+        }
+        else
+        {
+            qDebug() << "Starting Realsense with " << m_width << "x" << m_height;
+            cfg.enable_stream(RS2_STREAM_DEPTH, m_width, m_height, RS2_FORMAT_Z16, 30);
+            cfg.enable_stream(RS2_STREAM_COLOR, m_width, m_height, RS2_FORMAT_YUYV, 30);
+            cfg.enable_stream(RS2_STREAM_INFRARED, 1, m_width, m_height, RS2_FORMAT_Y8, 30);
 
-    m_isRunning = true;
-    m_abortFlag = false;
-    emit isRunningChanged();
+            if (m_record)
+            {
+                auto t = std::time(nullptr);
+                auto tm = *std::localtime(&t);
+                auto lt = std::put_time(&tm, "%Y%m%d_%H%M%S");
+                std::stringstream ss;
+                ss << m_recordFile.toString(QUrl::RemoveScheme).toStdString() << '/' << lt << ".bag";
+                std::cout << "Recording to: " << ss.str() << std::endl;
+                cfg.enable_record_to_file(ss.str());
+            }
+
+            pipe_profile = pipe->start(cfg);
+            auto sensor = pipe_profile.get_device().first<rs2::depth_sensor>();
+            qDebug()    << "Connecting to " << pipe_profile.get_device().get_info(RS2_CAMERA_INFO_NAME)
+                        << "at " << pipe_profile.get_device().get_info(RS2_CAMERA_INFO_IP_ADDRESS);
+            //sensor.set_option(RS2_OPTION_VISUAL_PRESET, RS2_RS400_VISUAL_PRESET_HIGH_ACCURACY);
+        }
+        auto depth_stream = pipe_profile.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
+        *intrinsics = depth_stream.get_intrinsics();
+
+        m_isRunning = true;
+        m_abortFlag = false;
+        emit isRunningChanged();
+    }
+    catch (const rs2::error &e)
+    {
+        std::cerr << "Realsense error calling " << e.get_failed_function() << "(" << e.get_failed_args() << "):\n   " << e.what() << std::endl;
+        m_isRunning = false;
+        m_abortFlag = true;
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << e.what() << std::endl;
+    }
+
 }
 
 void RealsenseWorker::stopStreaming()
@@ -435,11 +473,14 @@ try
             }
 
             // Point Cloud Processing
-            auto pclCloud = rsDepthFrameToPCLCloud(std::make_unique<rs2::depth_frame>(depth_frame));
-            auto groundPlaneCloud = processPointcloud(pclCloud);
-            if (m_paintPoints)
+            if (m_processPoints)
             {
-                projectPointsToPixmap(groundPlaneCloud);
+                auto pclCloud = rsDepthFrameToPCLCloud(std::make_unique<rs2::depth_frame>(depth_frame));
+                auto groundPlaneCloud = processPointcloud(pclCloud);
+                if (m_paintPoints)
+                {
+                    projectPointsToPixmap(groundPlaneCloud);
+                }
             }
             emit newFrameReady();
 
@@ -485,7 +526,7 @@ QImage RealsenseWorker::requestImage(const QString &id, QSize *size, const QSize
     else if (id_ == "infrared")
         im = infraredImage;
 
-    if (m_paintPoints)
+    if (m_processPoints && m_paintPoints)
     {
         QImage img(*im);
         QPainter p(&img);

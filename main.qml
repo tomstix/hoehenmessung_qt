@@ -123,6 +123,7 @@ ApplicationWindow {
                     id: heightPlot
                     width: sideBar.width
                     height: 400
+                    visible: Realsense.processPoints
                 }
             }
         }
