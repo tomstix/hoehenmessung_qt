@@ -1,8 +1,8 @@
-import QtQuick 2.12
-import QtQuick.Window 2.12
-import QtQuick.Controls 2.12
-import QtQuick.Layouts 1.12
-import QtCharts 2.12
+import QtQuick 2.15
+import QtQuick.Window 2.15
+import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
+import QtCharts 2.15
 import QtQuick.Dialogs 1.3
 
 ApplicationWindow {
@@ -11,7 +11,7 @@ ApplicationWindow {
     height: 630
     minimumHeight: 550
     visible: true
-    visibility: "Maximized"
+    //visibility: "Maximized"
     title: qsTr("Realsense Height Measurement")
 
     property bool shallClose: false
@@ -27,6 +27,9 @@ ApplicationWindow {
     }
     Loader {
         id: profileViewLoader
+    }
+    Loader {
+        id: calibrationLoader
     }
 
     menuBar: MenuBar {
@@ -51,6 +54,12 @@ ApplicationWindow {
                 text: qsTr("Profile Viewer")
                 onTriggered: {
                     profileViewLoader.source = "ProfileView.qml"
+                }
+            }
+            Action {
+                text: qsTr("Calibrate Sensor")
+                onTriggered: {
+                    calibrationLoader.source = "Calibration.qml"
                 }
             }
         }
@@ -118,12 +127,6 @@ ApplicationWindow {
                 Controls {
                     id: controls
                     width: sideBar.width
-                }
-                RunningPlot {
-                    id: heightPlot
-                    width: sideBar.width
-                    height: 400
-                    visible: Realsense.processPoints
                 }
             }
         }

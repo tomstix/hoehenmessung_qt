@@ -6,7 +6,6 @@
 #include "can.h"
 #include "datavisualizer.h"
 
-
 int main(int argc, char *argv[])
 {
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
@@ -19,11 +18,13 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
     const QUrl url(QStringLiteral("qrc:/main.qml"));
-    QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
-                     &app, [url](QObject const *obj, const QUrl &objUrl) {
+    QObject::connect(
+        &engine, &QQmlApplicationEngine::objectCreated,
+        &app, [url](QObject const *obj, const QUrl &objUrl)
+        {
         if (!obj && url == objUrl)
-            QCoreApplication::exit(-1);
-    }, Qt::QueuedConnection);
+            QCoreApplication::exit(-1); },
+        Qt::QueuedConnection);
 
     auto realsenseWorker = new RealsenseWorker;
     engine.addImageProvider("realsense", realsenseWorker);

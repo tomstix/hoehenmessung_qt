@@ -80,6 +80,7 @@ GridLayout {
         id: startButton
         Layout.alignment: Qt.AlignHCenter
         Layout.fillWidth: true
+        Layout.preferredWidth: parent.width / 2
         text: "Start"
         onClicked: {
             Realsense.start()
@@ -89,6 +90,7 @@ GridLayout {
         id: stopButton
         Layout.alignment: Qt.AlignHCenter
         Layout.fillWidth: true
+        Layout.preferredWidth: parent.width / 2
         text: "Stop"
         onClicked: {
             Realsense.stop()
@@ -314,23 +316,18 @@ GridLayout {
         }
     }
     Label {
-        Layout.alignment: Qt.AlignHCenter | Qt.AlignLeft
         Layout.fillWidth: true
-        property string textc: "Nothing received yet"
-        id: distanceLabel
-        text: "Raw height: " + Realsense.distanceRaw.toLocaleString(Qt.locale("de_DE"), 'f', 2) + " m"
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignLeft
-        visible: proccessPointsBox.checked
-    }
-    Label {
-        Layout.alignment: Qt.AlignHCenter | Qt.AlignRight
-        Layout.fillWidth: true
-        Layout.columnSpan: proccessPointsBox.checked ? 1:2
+        Layout.columnSpan: 2
         property string textc: "Nothing received yet"
         id: frametimeLabel
         text: "Frame time: " + Realsense.frameTime.toLocaleString(Qt.locale("de_DE"), 'f', 0) + " ms"
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignRight
+    }
+    TableControl {
+        id: tablecontrols
+        Layout.fillWidth: true
+        Layout.columnSpan: 2
+        visible: proccessPointsBox.checked
     }
 }

@@ -1,7 +1,6 @@
 #include "can.h"
 
-CAN::CAN(QObject *parent)
-    : QObject{parent}
+CAN::CAN()
 {
     qDebug() << "Starting CAN Bus";
     if (!QCanBus::instance()->plugins().contains(QStringLiteral("peakcan")))
@@ -28,82 +27,56 @@ CAN::CAN(QObject *parent)
     }
     emit deviceListChanged();
 }
+CAN::~CAN(){};
 
 const QVariantList &CAN::deviceList() const
 {
     return m_deviceList;
 }
-
-void CAN::setCanDevice(int deviceIndex)
-{
-    if (!connected())
-    {
-        auto currentDeviceInfo = m_devices.at(deviceIndex);
-        if (deviceIndex < numPeakDevices)
-        {
-            pluginName = "peakcan";
-            emit baudrateChangeable(true);
-        }
-        else if (deviceIndex >= numPeakDevices)
-        {
-            pluginName = "socketcan";
-            emit baudrateChangeable(false);
-        }
-        m_device = QCanBus::instance()->createDevice(pluginName, currentDeviceInfo.name());
-        QObject::connect(m_device, &QCanBusDevice::stateChanged, this, &CAN::canStateChanged);
-        deviceCreated = true;
-        setBaudrate(m_device->configurationParameter(QCanBusDevice::BitRateKey));
-        qDebug() << "CAN device set to " << pluginName << " device" << currentDeviceInfo.description();
-    }
-}
-
-void CAN::setBaudrate(QVariant rate)
-{
-    auto i = std::find(m_baudrates.begin(), m_baudrates.end(), rate);
-    auto index = i - m_baudrates.begin();
-    setBaudrate(index);
-}
-
 void CAN::setBaudrate(int idx)
 {
-    if (deviceCreated && pluginName != "socketcan")
+    if (pluginName != "socketcan")
     {
-        if (m_device->state() == QCanBusDevice::UnconnectedState)
-        {
-            m_device->setConfigurationParameter(QCanBusDevice::BitRateKey, m_baudrates.at(idx));
-            m_baudrateIndex = idx;
-            emit baudrateChanged(idx);
-        }
+        m_baudrateIndex = idx;
+        m_baudrate = m_baudrates.at(idx).toInt();
+        emit baudrateChanged(idx);
     }
 }
-
+void CAN::setCanDevice(int deviceIndex)
+{
+    m_deviceIndex = deviceIndex;
+    if (m_deviceIndex < numPeakDevices)
+    {
+        pluginName = "peakcan";
+        emit baudrateChangeable(true);
+    }
+    else if (m_deviceIndex >= numPeakDevices)
+    {
+        pluginName = "socketcan";
+        emit baudrateChangeable(false);
+    }
+    m_device = m_devices.at(m_deviceIndex);
+}
 int CAN::baudrate() const
 {
     return m_baudrateIndex;
 }
-
 void CAN::canStateChanged(QCanBusDevice::CanBusDeviceState state)
 {
     qDebug() << "CAN state changed to: " << state;
     emit deviceConnected(state == QCanBusDevice::ConnectedState);
 }
-
 void CAN::connectCAN()
 {
-    if (deviceCreated)
-    {
-        if (m_device->state() == QCanBusDevice::UnconnectedState)
-        {
-            m_device->connectDevice();
-        }
-        else
-        {
-            m_device->disconnectDevice();
-        }
-        emit baudrateChangeable(m_device->state() == QCanBusDevice::UnconnectedState);
-    }
+    canWorker = new CanWorker(m_deviceIndex, m_baudrate, pluginName);
+    canWorker->moveToThread(canThread);
+    QObject::connect(canThread, &QThread::started, canWorker, &CanWorker::startWorker);
+    QObject::connect(canWorker, &CanWorker::finished, canThread, &QThread::quit);
+    QObject::connect(canWorker, &CanWorker::finished, canWorker, &CanWorker::deleteLater);
+    QObject::connect(canThread, &QThread::finished, canThread, &QThread::deleteLater);
+    QObject::connect(this, &CAN::sendCAN, canWorker, &CanWorker::sendCANMessage);
+    canThread->start();
 }
-
 bool CAN::connected() const
 {
     if (deviceCreated)
@@ -113,20 +86,54 @@ bool CAN::connected() const
     }
     return false;
 }
-
 const QVariantList &CAN::baudrates() const
 {
     return m_baudrates;
 }
-
 void CAN::sendCANMessage(int id, QByteArray data, bool extended)
 {
-    if (connected())
+    qDebug() << "Trying to forwared CAN message " << id << " to CAN Thread";
+    emit sendCAN(id, data, extended);
+}
+void CAN::sendTableSetpoint(bool active, float setpoint)
+{
+}
+
+CanWorker::CanWorker(int index, int baudrate, QString plugin)
+{
+    auto devices = QCanBus::instance()->availableDevices();
+    auto currentDeviceInfo = devices.at(index);
+    m_device = QCanBus::instance()->createDevice(plugin, currentDeviceInfo.name());
+    m_device->setConfigurationParameter(QCanBusDevice::BitRateKey, baudrate);
+    // QObject::connect(m_device, &QCanBusDevice::stateChanged, this, &CAN::canStateChanged);
+    qDebug() << "CAN device set to " << plugin << " device" << currentDeviceInfo.description();
+}
+CanWorker::~CanWorker()
+{
+}
+void CanWorker::startWorker()
+{
+    sendCANMessage(0x100, QByteArray(8, 0xF1), true);
+    process();
+    emit finished();
+}
+void CanWorker::exit()
+{
+    m_exitFlag = true;
+}
+void CanWorker::process()
+{
+    qDebug() << "CAN Processing Loop Started!";
+    while (1)
     {
-        QCanBusFrame frame;
-        frame.setFrameId(id);
-        frame.setExtendedFrameFormat(extended);
-        frame.setPayload(data);
-        m_device->writeFrame(frame);
     }
+}
+void CanWorker::sendCANMessage(int id, QByteArray data, bool extended)
+{
+    qDebug() << "Sending CAN message..." << id << " " << data;
+    QCanBusFrame frame;
+    frame.setFrameId(id);
+    frame.setExtendedFrameFormat(extended);
+    frame.setPayload(data);
+    m_device->writeFrame(frame);
 }

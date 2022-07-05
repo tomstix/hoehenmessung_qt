@@ -6,5 +6,7 @@
         <file>RunningPlot.qml</file>
         <file>Controls.qml</file>
         <file>ProfileView.qml</file>
+        <file>TableControl.qml</file>
+        <file>Calibration.qml</file>
     </qresource>
 </RCC>

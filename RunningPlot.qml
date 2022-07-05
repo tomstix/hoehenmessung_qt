@@ -1,8 +1,12 @@
-import QtQuick 2.12
-import QtCharts 2.12
+import QtQuick 2.15
+import QtCharts 2.15
 
 ChartView {
     antialiasing: true
+    id: chartview
+
+    width: parent.width
+    height: 300
 
     property real yMin: 0
     property real yMax: 0

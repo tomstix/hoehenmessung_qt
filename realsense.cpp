@@ -275,16 +275,28 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
         }
 
         // moving average of plane equation
-        *groundPlaneCoefficients = (Eigen::Vector4f)(groundPlaneCoefficientsRaw.head<4>() * m_pointcloudoptions.ma_alpha
-                                                    + *groundPlaneCoefficients * (1.0F - m_pointcloudoptions.ma_alpha));
+        *groundPlaneCoefficients = (Eigen::Vector4f)(groundPlaneCoefficientsRaw.head<4>() * m_pointcloudoptions.ma_alpha + *groundPlaneCoefficients * (1.0F - m_pointcloudoptions.ma_alpha));
     }
 
     return groundPlaneCloud;
 }
 
+void printOptions(rs2::sensor sensor, std::vector<rs2_option> options)
+{
+    for (auto option : options)
+        try
+        {
+            qDebug() << sensor.get_option_name(option) << " : " << sensor.get_option_description(option);
+        }
+        catch (const rs2::error &e)
+        {
+            std::cerr << "Realsense error calling " << e.get_failed_function() << "(" << e.get_failed_args() << "):\n   " << e.what() << std::endl;
+        }
+}
+
 void RealsenseWorker::startStreaming()
 {
-    try 
+    try
     {
         rs2::config cfg;
         if (m_useBag)
@@ -314,9 +326,8 @@ void RealsenseWorker::startStreaming()
 
             pipe_profile = pipe->start(cfg);
             auto sensor = pipe_profile.get_device().first<rs2::depth_sensor>();
-            qDebug()    << "Connecting to " << pipe_profile.get_device().get_info(RS2_CAMERA_INFO_NAME)
-                        << "at " << pipe_profile.get_device().get_info(RS2_CAMERA_INFO_IP_ADDRESS);
-            //sensor.set_option(RS2_OPTION_VISUAL_PRESET, RS2_RS400_VISUAL_PRESET_HIGH_ACCURACY);
+            qDebug() << "Connecting to " << pipe_profile.get_device().get_info(RS2_CAMERA_INFO_NAME);
+            // sensor.set_option(RS2_OPTION_VISUAL_PRESET, RS2_RS400_VISUAL_PRESET_HIGH_ACCURACY);
         }
         auto depth_stream = pipe_profile.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
         *intrinsics = depth_stream.get_intrinsics();
@@ -335,7 +346,6 @@ void RealsenseWorker::startStreaming()
     {
         std::cerr << e.what() << std::endl;
     }
-
 }
 
 void RealsenseWorker::stopStreaming()
@@ -453,7 +463,7 @@ try
             }
             else if (color_frame.get_profile().format() == RS2_FORMAT_YUYV)
             {
-                *colorImage = QImage(convert_yuyv_to_rgb((uchar*)color_frame.get_data(), m_width, m_height), m_width, m_height, m_width * 3, QImage::Format_RGB888);
+                *colorImage = QImage(convert_yuyv_to_rgb((uchar *)color_frame.get_data(), m_width, m_height), m_width, m_height, m_width * 3, QImage::Format_RGB888);
             }
             else
             {
