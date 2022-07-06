@@ -269,7 +269,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
         groundPlaneRansac.getModelCoefficients(groundPlaneCoefficientsRaw);
 
         // flip plane if upside down
-        if (groundPlaneCoefficientsRaw.w() > 0)
+        if (groundPlaneCoefficientsRaw.y() < 0)
         {
             groundPlaneCoefficientsRaw = -groundPlaneCoefficientsRaw;
         }
@@ -494,11 +494,7 @@ try
             }
             emit newFrameReady();
 
-            // send Data to CAN Bus
-            QByteArray heightData;
-            heightData.append((char)(int16_t)(groundPlaneCoefficients->w() * 100.0));
-            heightData.append((int16_t)(groundPlaneCoefficients->w() * 100.0) >> 8);
-            emit sendCANHeight(100, heightData, true);
+            emit newHeight(groundPlaneCoefficients->w());
 
             // calculate frame time
             auto time_now = std::chrono::high_resolution_clock::now();

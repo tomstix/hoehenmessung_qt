@@ -15,18 +15,20 @@ Window {
             text: "Set Max"
             width: parent.width
             height: 50
+            onClicked: Headercontrol.calibrateMax()
         }
         Button {
             text: "Set Min"
             width: parent.width
             height: 50
+            onClicked: Headercontrol.calibrateMin()
         }
         Label {
-            text: "Raw Value:\t"
+            text: "Raw Value:\t" + Headercontrol.tableRaw
             width: parent.width
         }
         Label {
-            text: "Calibration status:\t"
+            text: (Headercontrol.tableCalibrated ? "Calibrated" : "Not Calibrated")
             width: parent.width
         }
     }

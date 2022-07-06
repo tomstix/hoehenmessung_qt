@@ -138,11 +138,11 @@ signals:
     void paintPointsChanged();
     void processPointsChanged();
     void recordChanged();
+    void newHeight(float height);
     void newHeightPoint();
     void bagFileChanged();
     void recordFileChanged();
     void useBagChanged();
-    void sendCANHeight(int id, QByteArray data, bool extended);
 
 protected:
     void run() override;

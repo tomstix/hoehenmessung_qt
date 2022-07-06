@@ -2,138 +2,92 @@
 
 CAN::CAN()
 {
-    qDebug() << "Starting CAN Bus";
-    if (!QCanBus::instance()->plugins().contains(QStringLiteral("peakcan")))
+    auto plugins = QCanBus::instance()->plugins();
+    for(auto plugin : plugins)
     {
-        qDebug() << "PEAK CAN driver not available!";
+        auto devices = QCanBus::instance()->availableDevices(plugin);
+        if(devices.isEmpty())
+        {
+            qDebug() << "No devices found for " << plugin;
+        }
+        else
+        {
+            m_plugins.append(plugin);
+        }
     }
-    if (!QCanBus::instance()->plugins().contains(QStringLiteral("socketcan")))
-    {
-        qDebug() << "Socketcan driver not available!";
-    }
-    QString errorString;
-    m_devices = QCanBus::instance()->availableDevices(
-        QStringLiteral("peakcan"), &errorString);
-    numPeakDevices = m_devices.size();
-    m_devices.append(QCanBus::instance()->availableDevices(
-        QStringLiteral("socketcan"), &errorString));
-    numSocketDevices = m_devices.size() - numPeakDevices;
-    if (!errorString.isEmpty())
-        qDebug() << errorString;
-
+}
+CAN::~CAN()
+{
+}
+void CAN::setPlugin(const int index)
+{
+    m_pluginName = m_plugins.at(index);
+    m_devices = QCanBus::instance()->availableDevices(m_pluginName);
+    m_deviceList.clear();
     foreach (auto &dev, m_devices)
     {
         m_deviceList.append(dev.description() + " (" + dev.name() + ")");
     }
     emit deviceListChanged();
-}
-CAN::~CAN(){};
-
-const QVariantList &CAN::deviceList() const
-{
-    return m_deviceList;
-}
-void CAN::setBaudrate(int idx)
-{
-    if (pluginName != "socketcan")
+    if (m_pluginName == "socketcan")
     {
-        m_baudrateIndex = idx;
-        m_baudrate = m_baudrates.at(idx).toInt();
-        emit baudrateChanged(idx);
+        m_rateChangeable = false;
     }
+    else m_rateChangeable = true;
+    emit rateChangeableChanged();
 }
-void CAN::setCanDevice(int deviceIndex)
+void CAN::setBaudrate(int index)
 {
-    m_deviceIndex = deviceIndex;
-    if (m_deviceIndex < numPeakDevices)
+    m_baudrate = m_baudrates.at(index);
+    qDebug() << "setBaudrate: " << m_baudrate;
+}
+void CAN::setCanDevice(int index)
+{
+    m_deviceIndex = index;
+}
+void CAN::connect()
+{
+    if (!m_connected)
     {
-        pluginName = "peakcan";
-        emit baudrateChangeable(true);
+        auto deviceInfo = m_devices.at(m_deviceIndex);
+        QCanBus::instance()->moveToThread(canThread);
+        m_device = QCanBus::instance()->createDevice(m_pluginName, deviceInfo.name());
+        m_device->setConfigurationParameter(QCanBusDevice::BitRateKey, m_baudrate);
+        QObject::connect(m_device, &QCanBusDevice::stateChanged, this, &CAN::stateChanged);
+        QObject::connect(m_device, &QCanBusDevice::framesReceived, this, &CAN::framesReceived);
+        m_device->connectDevice();
     }
-    else if (m_deviceIndex >= numPeakDevices)
+    else
     {
-        pluginName = "socketcan";
-        emit baudrateChangeable(false);
+        m_device->disconnectDevice();
+        delete m_device;
     }
-    m_device = m_devices.at(m_deviceIndex);
+    emit connectedChanged();
 }
-int CAN::baudrate() const
+void CAN::stateChanged(QCanBusDevice::CanBusDeviceState state)
 {
-    return m_baudrateIndex;
-}
-void CAN::canStateChanged(QCanBusDevice::CanBusDeviceState state)
-{
-    qDebug() << "CAN state changed to: " << state;
-    emit deviceConnected(state == QCanBusDevice::ConnectedState);
-}
-void CAN::connectCAN()
-{
-    canWorker = new CanWorker(m_deviceIndex, m_baudrate, pluginName);
-    canWorker->moveToThread(canThread);
-    QObject::connect(canThread, &QThread::started, canWorker, &CanWorker::startWorker);
-    QObject::connect(canWorker, &CanWorker::finished, canThread, &QThread::quit);
-    QObject::connect(canWorker, &CanWorker::finished, canWorker, &CanWorker::deleteLater);
-    QObject::connect(canThread, &QThread::finished, canThread, &QThread::deleteLater);
-    QObject::connect(this, &CAN::sendCAN, canWorker, &CanWorker::sendCANMessage);
-    canThread->start();
-}
-bool CAN::connected() const
-{
-    if (deviceCreated)
+    m_connected = (state == QCanBusDevice::ConnectedState);
+    if(m_connected)
     {
-        auto state = m_device->state();
-        return (state == QCanBusDevice::ConnectedState);
+        sendCANMessage(0x100, QByteArray("Hello", 5));
     }
-    return false;
-}
-const QVariantList &CAN::baudrates() const
-{
-    return m_baudrates;
+    qDebug() << "Can Bus state changed to: " << state;
+    emit connectedChanged();
 }
 void CAN::sendCANMessage(int id, QByteArray data, bool extended)
 {
-    qDebug() << "Trying to forwared CAN message " << id << " to CAN Thread";
-    emit sendCAN(id, data, extended);
-}
-void CAN::sendTableSetpoint(bool active, float setpoint)
-{
-}
-
-CanWorker::CanWorker(int index, int baudrate, QString plugin)
-{
-    auto devices = QCanBus::instance()->availableDevices();
-    auto currentDeviceInfo = devices.at(index);
-    m_device = QCanBus::instance()->createDevice(plugin, currentDeviceInfo.name());
-    m_device->setConfigurationParameter(QCanBusDevice::BitRateKey, baudrate);
-    // QObject::connect(m_device, &QCanBusDevice::stateChanged, this, &CAN::canStateChanged);
-    qDebug() << "CAN device set to " << plugin << " device" << currentDeviceInfo.description();
-}
-CanWorker::~CanWorker()
-{
-}
-void CanWorker::startWorker()
-{
-    sendCANMessage(0x100, QByteArray(8, 0xF1), true);
-    process();
-    emit finished();
-}
-void CanWorker::exit()
-{
-    m_exitFlag = true;
-}
-void CanWorker::process()
-{
-    qDebug() << "CAN Processing Loop Started!";
-    while (1)
-    {
-    }
-}
-void CanWorker::sendCANMessage(int id, QByteArray data, bool extended)
-{
-    qDebug() << "Sending CAN message..." << id << " " << data;
-    QCanBusFrame frame;
-    frame.setFrameId(id);
+    QCanBusFrame frame(id, data);
     frame.setExtendedFrameFormat(extended);
-    frame.setPayload(data);
     m_device->writeFrame(frame);
+}
+void CAN::framesReceived()
+{
+    auto frames = m_device->readAllFrames();
+    for(auto &frame : frames)
+    {
+        if(frame.frameId() == 0x200)
+        {
+            emit newHeaderMessage(frame.frameId(), frame.payload());
+        }
+    }
 }

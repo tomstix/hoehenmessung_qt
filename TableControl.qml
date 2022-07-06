@@ -8,28 +8,31 @@ GridLayout {
 
     Column {
         Layout.fillWidth: true
+        Layout.preferredWidth: parent.width*0.6666
         Label {
-            property string textc: "Nothing received yet"
             id: distanceLabel
-            text: "Measured height:\t" + Realsense.distanceRaw.toLocaleString(Qt.locale("de_DE"), 'f', 2) + " m"
+            text: "Measured height:\t" + (Headercontrol.height/10).toFixed(0) + "cm"
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignLeft
         }
         Label {
-            property string textc: "Nothing received yet"
-            text: "Offset:\t\t" + "0,00 m"
+            text: "Offset:\t\t" + (Headercontrol.tableSetpointOffset/10).toFixed(0) + "cm"
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignLeft
         }
         Label {
-            property string textc: "Nothing received yet"
-            text: "Table setpoint:\t" + "0,72 m"
+            text: "Table setpoint:\t" + (Headercontrol.tableSetpoint/10).toFixed(0) + "cm"
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignLeft
         }
         Label {
-            property string textc: "Nothing received yet"
-            text: "Table length:\t" + "0,72 m"
+            text: "Table length:\t" + (Headercontrol.tableCalibrated ? ((Headercontrol.tableLength/10).toFixed(0) + "cm") : "n/A")
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignLeft
+        }
+        Label {
+            text: "Error:\t\t" + (Headercontrol.tableCalibrated ? (((Headercontrol.tableLength - Headercontrol.tableSetpoint)/10).toFixed(0) + "cm") : "n/A")
+            color: Math.abs(((Headercontrol.tableLength - Headercontrol.tableSetpoint)/10)) > 10 ? "red" : "black"
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignLeft
         }
@@ -47,6 +50,8 @@ GridLayout {
             background: Rectangle {
                 color: parent.down ? "#80ff80" : "#00ff00"
             }
+            autoRepeat: true
+            onClicked: Headercontrol.tableSetpointOffset += 10
         }
         Button {
             text: "-"
@@ -57,6 +62,8 @@ GridLayout {
             background: Rectangle {
                 color: parent.down ? "#ff8080" : "#ff0000"
             }
+            autoRepeat: true
+            onClicked: Headercontrol.tableSetpointOffset -= 10
         }
     }
     CheckBox {

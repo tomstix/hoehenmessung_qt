@@ -5,6 +5,7 @@
 #include "realsense.h"
 #include "can.h"
 #include "datavisualizer.h"
+#include "headercontrol.h"
 
 int main(int argc, char *argv[])
 {
@@ -36,7 +37,12 @@ int main(int argc, char *argv[])
     auto datavisualizer = new DataVisualizer;
     engine.rootContext()->setContextProperty("DataVisualizer", datavisualizer);
 
-    QObject::connect(realsenseWorker, &RealsenseWorker::sendCANHeight, canBus, &CAN::sendCANMessage);
+    auto headercontrol = new Headercontrol;
+    engine.rootContext()->setContextProperty("Headercontrol", headercontrol);
+
+    QObject::connect(realsenseWorker, &RealsenseWorker::newHeight, headercontrol, &Headercontrol::updateHeight);
+    QObject::connect(headercontrol, &Headercontrol::sendCanMessage, canBus, &CAN::sendCANMessage);
+    QObject::connect(canBus, &CAN::newHeaderMessage, headercontrol, &Headercontrol::processHeaderMessage);
 
     engine.load(url);
 

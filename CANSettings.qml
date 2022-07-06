@@ -9,22 +9,30 @@ Window {
     visible: true
     title: "CAN Settings"
 
-    property bool connected: CAN.connected()
+    /*property bool connected: CAN.connected()
 
     Connections {
         target: CAN
         function onDeviceConnected(success) {
             connected = success
         }
-    }
+    }*/
 
     ColumnLayout {
         anchors.fill: parent
         ComboBox {
+            id: pluginSelector
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
+            model: CAN.plugins
+            enabled: !CAN.connected
+            onCurrentIndexChanged: CAN.setPlugin(currentIndex)
+        }
+        ComboBox {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignTop
             model: CAN.deviceList
-            enabled: !connected
+            enabled: !CAN.connected
             onCurrentIndexChanged: CAN.setCanDevice(currentIndex)
         }
         ComboBox {
@@ -33,25 +41,14 @@ Window {
             Layout.alignment: Qt.AlignTop
             model: CAN.baudrates
             currentIndex: 1
-            onCurrentIndexChanged: CAN.baudrate = currentIndex
-            enabled: !connected
-            Connections {
-                target: CAN
-                function onBaudrateChangeable(b)
-                {
-                    baudrateSelector.enabled = b
-                }
-                function onBaudrateChanged(i)
-                {
-                    baudrateSelector.currentIndex = i
-                }
-            }
+            onCurrentIndexChanged: CAN.setBaudrate(currentIndex)
+            enabled: CAN.rateChangeable && !CAN.connected
         }
         Button {
             id: connectButton
             Layout.fillWidth: true
-            text: connected ? "Disconnect" : "Connect"
-            onPressed: CAN.connectCAN()
+            text: CAN.connected ? "Disconnect" : "Connect"
+            onPressed: CAN.connect()
         }
     }
 
