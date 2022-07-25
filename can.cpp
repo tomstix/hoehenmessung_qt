@@ -76,6 +76,7 @@ void CAN::stateChanged(QCanBusDevice::CanBusDeviceState state)
 }
 void CAN::sendCANMessage(int id, QByteArray data, bool extended)
 {
+    if (!m_connected) return;
     QCanBusFrame frame(id, data);
     frame.setExtendedFrameFormat(extended);
     m_device->writeFrame(frame);

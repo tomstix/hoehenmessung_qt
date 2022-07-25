@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QDebug>
 #include <QtDataVisualization>
 #include <QScatterDataProxy>
 #include <QAbstractItemModel>
@@ -15,7 +16,7 @@ public:
     explicit DataVisualizer(QObject *parent = nullptr);
 
 public slots:
-    void receiveData(pcl::PointCloud<pcl::PointXYZ>::Ptr pointcloud);
+    void receiveData(pcl::PointCloud<pcl::PointXYZ>::Ptr pointcloud, std::vector<int> inliers);
 
 signals:
     void dataReady();

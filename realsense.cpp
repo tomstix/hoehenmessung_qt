@@ -2,6 +2,52 @@
 
 #include <librealsense2/rsutil.h>
 
+Point3D::Point3D(float newX, float newY, float newZ) : x(newX), y(newY), z(newZ)
+{
+
+}
+
+int Point3DModel::rowCount(const QModelIndex &parent) const
+{
+    return mDatas.size();
+}
+
+int Point3DModel::columnCount(const QModelIndex &parent) const
+{
+    return 3;
+}
+
+QVariant Point3DModel::data(const QModelIndex &index, int role) const
+{
+    if (!index.isValid()) return QVariant();
+    if ( role == Qt::DisplayRole )
+    {
+        if ( index.column() == 0)
+        {
+            return mDatas[index.row()].x;
+        }
+        if ( index.column() == 1)
+        {
+            return mDatas[index.row()].y;
+        }
+        if ( index.column() == 2)
+        {
+            return mDatas[index.row()].z;
+        }
+    }
+    return QVariant();
+}
+
+void Point3DModel::addPoint(Point3D p)
+{
+    mDatas.append(p);
+}
+
+void Point3DModel::clear()
+{
+    mDatas.clear();
+}
+
 void RealsenseWorker::setResolution(Resolution res_)
 {
     m_resolution = res_;
@@ -76,6 +122,11 @@ void RealsenseWorker::setRecordFile(QUrl url)
     m_recordFile = url;
     qDebug() << "BAG file set to " << m_recordFile;
     emit recordFileChanged();
+}
+
+Point3DModel RealsenseWorker::points3d() const
+{
+    return point3dmodel;
 }
 int RealsenseWorker::frameTime() const
 {
@@ -491,6 +542,14 @@ try
                 {
                     projectPointsToPixmap(groundPlaneCloud);
                 }
+                // copy Points to Point3DModel List
+                point3dmodel->clear();
+                for ( auto p : groundPlaneCloud->points)
+                {
+                    auto p3d = Point3D(p.x, p.y, p.z);
+                    point3dmodel->addPoint(p3d);
+                }
+                emit points3dChanged();
             }
             emit newFrameReady();
 

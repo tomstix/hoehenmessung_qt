@@ -31,10 +31,9 @@ signals:
     void tableRawChanged();
     void tableCalibratedChanged();
     void tableLengthChanged();
-
     void tableSetpointChanged();
-
     void tableSetpointOffsetChanged();
+    void activeChanged();
 
 private:
     float m_height;
@@ -49,4 +48,6 @@ private:
     Q_PROPERTY(int tableSetpoint READ tableSetpoint NOTIFY tableSetpointChanged)
     int m_tableSetpointOffset = 0;
     Q_PROPERTY(int tableSetpointOffset READ tableSetpointOffset WRITE setTableSetpointOffset NOTIFY tableSetpointOffsetChanged)
+    bool m_active = false;
+    Q_PROPERTY(bool active MEMBER m_active NOTIFY activeChanged);
 };

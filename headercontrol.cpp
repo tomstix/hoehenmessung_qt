@@ -28,6 +28,13 @@ void Headercontrol::updateHeight(float height)
 {
     m_height = (int)(height * 1000);
     m_tableSetpoint = m_height + m_tableSetpointOffset;
+    QByteArray data;
+    data.resize(3);
+    quint16 setpoint = m_tableSetpoint;
+    data[0] = m_active;
+    data[2] = setpoint;
+    data[1] = setpoint >> 8;
+    emit sendCanMessage(0x100, data, true);
     emit heightChanged();
     emit tableSetpointChanged();
 }

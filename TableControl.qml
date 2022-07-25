@@ -70,6 +70,7 @@ GridLayout {
         Layout.fillWidth: true
         text: "Header Control active"
         checked: false
+        onCheckedChanged: Headercontrol.active = checked
     }
     RunningPlot {
         id: heightPlot

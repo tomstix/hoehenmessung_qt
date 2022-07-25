@@ -6,11 +6,13 @@ DataVisualizer::DataVisualizer(QObject *parent)
 
 }
 
-void DataVisualizer::receiveData(pcl::PointCloud<pcl::PointXYZ>::Ptr pointcloud)
+void DataVisualizer::receiveData(pcl::PointCloud<pcl::PointXYZ>::Ptr pointcloud, std::vector<int> inliers)
 {
     using namespace QtDataVisualization;
 
-    auto proxy = series->dataProxy();
+    qDebug() << "New Data for Visualizer with " << inliers.size() << " points.";
+
+    /*auto proxy = series->dataProxy();
 
     for (auto point : pointcloud->points)
     {
@@ -20,5 +22,5 @@ void DataVisualizer::receiveData(pcl::PointCloud<pcl::PointXYZ>::Ptr pointcloud)
         item.setZ(point.z);
         proxy->addItem(item);
     }
-    emit dataReady();
+    emit dataReady();*/
 }
