@@ -4,7 +4,6 @@
 
 #include "realsense.h"
 #include "can.h"
-#include "datavisualizer.h"
 #include "headercontrol.h"
 
 int main(int argc, char *argv[])
@@ -34,15 +33,14 @@ int main(int argc, char *argv[])
     auto canBus = new CAN;
     engine.rootContext()->setContextProperty("CAN", canBus);
 
-    auto datavisualizer = new DataVisualizer;
-    engine.rootContext()->setContextProperty("DataVisualizer", datavisualizer);
-
     auto headercontrol = new Headercontrol;
     engine.rootContext()->setContextProperty("Headercontrol", headercontrol);
 
     QObject::connect(realsenseWorker, &RealsenseWorker::newHeight, headercontrol, &Headercontrol::updateHeight);
     QObject::connect(headercontrol, &Headercontrol::sendCanMessage, canBus, &CAN::sendCANMessage);
     QObject::connect(canBus, &CAN::newHeaderMessage, headercontrol, &Headercontrol::processHeaderMessage);
+
+    qmlRegisterType<Point3DList>("Point3DList", 1,0, "Point3DList");
 
     engine.load(url);
 

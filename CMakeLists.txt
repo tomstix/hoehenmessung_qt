@@ -31,7 +31,6 @@ set(PROJECT_SOURCES
         qml.qrc
         realsense.h realsense.cpp
         can.h can.cpp
-        datavisualizer.h datavisualizer.cpp
         headercontrol.h headercontrol.cpp
 )
 

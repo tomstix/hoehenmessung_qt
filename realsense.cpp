@@ -7,45 +7,63 @@ Point3D::Point3D(float newX, float newY, float newZ) : x(newX), y(newY), z(newZ)
 
 }
 
-int Point3DModel::rowCount(const QModelIndex &parent) const
+Point3DList::Point3DList(QObject *parent) : QAbstractListModel(parent)
 {
-    return mDatas.size();
 }
 
-int Point3DModel::columnCount(const QModelIndex &parent) const
+void Point3DList::resetPoints(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
 {
-    return 3;
-}
-
-QVariant Point3DModel::data(const QModelIndex &index, int role) const
-{
-    if (!index.isValid()) return QVariant();
-    if ( role == Qt::DisplayRole )
+    auto newPoints = std::make_shared<QVector<Point3D>>();
+#pragma omp parallel for default(none) shared(cloud, newPoints)
+    for (auto p : cloud->points)
     {
-        if ( index.column() == 0)
+        if (p.x == p.x && p.y == p.y && p.z == p.z && p.y != 0x7fd980)
         {
-            return mDatas[index.row()].x;
-        }
-        if ( index.column() == 1)
-        {
-            return mDatas[index.row()].y;
-        }
-        if ( index.column() == 2)
-        {
-            return mDatas[index.row()].z;
+            *newPoints << Point3D(p.x, -p.y, p.z);
         }
     }
+    beginResetModel();
+    m_points = newPoints;
+    endResetModel();
+}
+
+int Point3DList::rowCount(const QModelIndex &parent) const
+{
+    Q_UNUSED(parent);
+    return m_points->count();
+}
+
+QVariant Point3DList::data(const QModelIndex &index, int role) const
+{
+    if (index.row() < 0 || index.row() >= m_points->count())
+        return QVariant();
+    const Point3D point = m_points->at(index.row());
+    if (role == xRole)
+        return point.x;
+    if (role == yRole)
+        return point.y;
+    if (role == zRole)
+        return point.z;
     return QVariant();
 }
 
-void Point3DModel::addPoint(Point3D p)
+QHash<int, QByteArray> Point3DList::roleNames() const
 {
-    mDatas.append(p);
+    QHash<int, QByteArray> roles;
+    roles[xRole] = "x";
+    roles[yRole] = "y";
+    roles[zRole] = "z";
+    return roles;
 }
 
-void Point3DModel::clear()
+Point3DList *RealsenseWorker::groundPlanePoints3D() const
 {
-    mDatas.clear();
+    return m_groundPlanePointsModel;
+}
+
+Point3DList *RealsenseWorker::restPoints3D() const
+{
+    return m_restPointsModel;
 }
 
 void RealsenseWorker::setResolution(Resolution res_)
@@ -124,10 +142,6 @@ void RealsenseWorker::setRecordFile(QUrl url)
     emit recordFileChanged();
 }
 
-Point3DModel RealsenseWorker::points3d() const
-{
-    return point3dmodel;
-}
 int RealsenseWorker::frameTime() const
 {
     return (int)m_frameTime_ms.count();
@@ -245,15 +259,15 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::rsDepthFrameToPCLCloud(std:
     return pclCloud;
 }
 
-void RealsenseWorker::projectPointsToPixmap(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud) const
+void RealsenseWorker::projectPointsToPixmap(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud)
 {
     if (m_tared)
     {
         pcl::transformPointCloud(*pclCloud, *pclCloud, *transform_mat_inv);
     }
-    QPixmap pixmap(m_width, m_height);
-    pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
+    auto pixmap = std::make_shared<QPixmap>(m_width, m_height);
+    pixmap->fill(Qt::transparent);
+    QPainter painter(pixmap.get());
     QPen pen = painter.pen();
     pen.setColor(Qt::red);
     pen.setWidthF(m_pointcloudoptions.voxel_size * 100.0F);
@@ -267,12 +281,13 @@ void RealsenseWorker::projectPointsToPixmap(pcl::PointCloud<pcl::PointXYZ>::Ptr 
         rs2_project_point_to_pixel(pix, &intrin, p);
         painter.drawPoint((int)std::round(pix[0]), (int)std::round(pix[1]));
     }
-    *planePixmap = pixmap;
+    planePixmap = pixmap;
 }
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud) const
 {
     pcl::PointCloud<pcl::PointXYZ>::Ptr groundPlaneCloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr restPointCloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::CropBox<pcl::PointXYZ> cropBox;
     pcl::VoxelGrid<pcl::PointXYZ> downsample;
 
@@ -315,6 +330,17 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
     {
         groundPlaneRansac.getInliers(groundPlaneInliers);
         pcl::copyPointCloud(*pclCloud, groundPlaneInliers, *groundPlaneCloud);
+
+        pcl::ExtractIndices<pcl::PointXYZ> extract;
+        pcl::PointIndices::Ptr inliers (new pcl::PointIndices ());
+        inliers->indices = groundPlaneInliers;
+        extract.setInputCloud(pclCloud);
+        extract.setIndices(inliers);
+        extract.setNegative(true);
+        extract.filter(*restPointCloud);
+        // copy Points to Point3DModel List
+        m_groundPlanePointsModel->resetPoints(groundPlaneCloud);
+        m_restPointsModel->resetPoints(restPointCloud);
 
         Eigen::VectorXf groundPlaneCoefficientsRaw;
         groundPlaneRansac.getModelCoefficients(groundPlaneCoefficientsRaw);
@@ -496,76 +522,73 @@ try
 
     while (!m_abortFlag)
     {
-        auto frames = get_frames();
-
-        if (*frames)
+        if (!m_paused)
         {
-            auto color_frame = frames->get_color_frame();
-            auto depth_frame = frames->get_depth_frame();
-            auto ir_frame = frames->get_infrared_frame(1);
+            auto frames = get_frames();
+            if (*frames)
+            {
+                auto color_frame = frames->get_color_frame();
+                auto depth_frame = frames->get_depth_frame();
+                auto ir_frame = frames->get_infrared_frame(1);
 
-            m_width = color_frame.get_width();
-            m_height = color_frame.get_height();
+                m_width = color_frame.get_width();
+                m_height = color_frame.get_height();
 
-            // make QImages from Color and Depth frames
-            if (color_frame.get_profile().format() == RS2_FORMAT_RGB8)
-            {
-                *colorImage = QImage((uchar *)color_frame.get_data(), m_width, m_height, m_width * 3, QImage::Format_RGB888);
-            }
-            else if (color_frame.get_profile().format() == RS2_FORMAT_YUYV)
-            {
-                *colorImage = QImage(convert_yuyv_to_rgb((uchar *)color_frame.get_data(), m_width, m_height), m_width, m_height, m_width * 3, QImage::Format_RGB888);
-            }
-            else
-            {
-                qDebug() << "Wrong format for color frame!";
-            }
-            if (depth_frame.get_profile().format() == RS2_FORMAT_Z16)
-            {
-                *depthImage = QImage((uchar *)depth_frame.get_data(), m_width, m_height, m_width * 2, QImage::Format_Grayscale16);
-            }
-            else
-            {
-                qDebug() << "Wrong format for depth frame!";
-            }
-            if (ir_frame.get_profile().format() == RS2_FORMAT_Y8)
-            {
-                *infraredImage = QImage((uchar *)ir_frame.get_data(), m_width, m_height, m_width, QImage::Format_Grayscale8);
-            }
-
-            // Point Cloud Processing
-            if (m_processPoints)
-            {
-                auto pclCloud = rsDepthFrameToPCLCloud(std::make_unique<rs2::depth_frame>(depth_frame));
-                auto groundPlaneCloud = processPointcloud(pclCloud);
-                if (m_paintPoints)
+                // make QImages from Color and Depth frames
+                if (color_frame.get_profile().format() == RS2_FORMAT_RGB8)
                 {
-                    projectPointsToPixmap(groundPlaneCloud);
+                    *colorImage = QImage((uchar *)color_frame.get_data(), m_width, m_height, m_width * 3, QImage::Format_RGB888);
                 }
-                // copy Points to Point3DModel List
-                point3dmodel->clear();
-                for ( auto p : groundPlaneCloud->points)
+                else if (color_frame.get_profile().format() == RS2_FORMAT_YUYV)
                 {
-                    auto p3d = Point3D(p.x, p.y, p.z);
-                    point3dmodel->addPoint(p3d);
+                    *colorImage = QImage(convert_yuyv_to_rgb((uchar *)color_frame.get_data(), m_width, m_height), m_width, m_height, m_width * 3, QImage::Format_RGB888);
                 }
-                emit points3dChanged();
+                else
+                {
+                    qDebug() << "Wrong format for color frame!";
+                }
+                if (depth_frame.get_profile().format() == RS2_FORMAT_Z16)
+                {
+                    *depthImage = QImage((uchar *)depth_frame.get_data(), m_width, m_height, m_width * 2, QImage::Format_Grayscale16);
+                }
+                else
+                {
+                    qDebug() << "Wrong format for depth frame!";
+                }
+                if (ir_frame)
+                {
+                    if (ir_frame.get_profile().format() == RS2_FORMAT_Y8)
+                    {
+                        *infraredImage = QImage((uchar *)ir_frame.get_data(), m_width, m_height, m_width, QImage::Format_Grayscale8);
+                    }
+                }
+
+                // Point Cloud Processing
+                if (m_processPoints)
+                {
+                    auto pclCloud = rsDepthFrameToPCLCloud(std::make_unique<rs2::depth_frame>(depth_frame));
+                    auto groundPlaneCloud = processPointcloud(pclCloud);
+                    if (m_paintPoints)
+                    {
+                        projectPointsToPixmap(groundPlaneCloud);
+                    }
+                }
+                emit newFrameReady();
+
+                emit newHeight(groundPlaneCoefficients->w());
+
+                // calculate frame time
+                auto time_now = std::chrono::high_resolution_clock::now();
+                m_frameTime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - m_lastFrameTimestamp);
+                emit frameTimeChanged();
+                m_lastFrameTimestamp = time_now;
+
+                auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - start_time);
+                long timestamp = now_ms.count();
+                m_heightPoint.setX((qreal)timestamp);
+                m_heightPoint.setY(groundPlaneCoefficients->w());
+                emit newHeightPoint();
             }
-            emit newFrameReady();
-
-            emit newHeight(groundPlaneCoefficients->w());
-
-            // calculate frame time
-            auto time_now = std::chrono::high_resolution_clock::now();
-            m_frameTime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - m_lastFrameTimestamp);
-            emit frameTimeChanged();
-            m_lastFrameTimestamp = time_now;
-
-            auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - start_time);
-            long timestamp = now_ms.count();
-            m_heightPoint.setX((qreal)timestamp);
-            m_heightPoint.setY(groundPlaneCoefficients->w());
-            emit newHeightPoint();
         }
     }
     stopStreaming();
@@ -593,9 +616,10 @@ QImage RealsenseWorker::requestImage(const QString &id, QSize *size, const QSize
 
     if (m_processPoints && m_paintPoints)
     {
+        QPixmap pm = QPixmap(*planePixmap);
         QImage img(*im);
         QPainter p(&img);
-        p.drawPixmap(0, 0, *planePixmap);
+        p.drawPixmap(0, 0, pm);
         return img;
     }
     return *im;

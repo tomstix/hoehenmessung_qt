@@ -11,6 +11,7 @@ GridLayout {
             resolutionSelector.enabled = !Realsense.running
             startButton.enabled = !Realsense.running
             stopButton.enabled = Realsense.running
+            pauseButton.enabled = Realsense.running
             tareButton.enabled = Realsense.running
         }
     }
@@ -97,6 +98,18 @@ GridLayout {
         }
         Component.onCompleted: enabled = false
     }
+    Button {
+        id: pauseButton
+        Layout.alignment: Qt.AlignHCenter
+        Layout.fillWidth: true
+        Layout.columnSpan: 2
+        text: "Pause"
+        Component.onCompleted: enabled = false
+        onClicked: {
+            Realsense.paused = !Realsense.paused
+        }
+    }
+
     CheckBox {
         id: proccessPointsBox
         Layout.fillWidth: true

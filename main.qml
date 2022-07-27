@@ -55,6 +55,7 @@ ApplicationWindow {
                 onTriggered: {
                     profileViewLoader.source = "ProfileView.qml"
                 }
+                enabled: Realsense.processPoints
             }
             Action {
                 text: qsTr("Calibrate Sensor")

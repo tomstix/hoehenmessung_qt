@@ -19,6 +19,7 @@
 #include <pcl/common/transforms.h>
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/extract_indices.h>
 #include <pcl/sample_consensus/ransac.h>
 #include <pcl/sample_consensus/sac_model_perpendicular_plane.h>
 
@@ -30,25 +31,31 @@
 class Point3D
 {
 public:
-    Point3D();
     Point3D(float x, float y, float z);
     float x;
     float y;
     float z;
 };
 
-class Point3DModel : public QObject
+class Point3DList : public QAbstractListModel
 {
     Q_OBJECT
 public:
-    Point3DModel(QObject* parent = 0);
-    int rowCount(const QModelIndex& parent = QModelIndex()) const;
-    int columnCount(const QModelIndex& parent = QModelIndex()) const;
-    QVariant data(const QModelIndex &index, int role) const;
-    void addPoint(Point3D p);
+    enum Point3DRoles
+    {
+        xRole = Qt::UserRole + 1,
+        yRole,
+        zRole
+    };
+    Point3DList(QObject* parent = nullptr);
+    void resetPoints(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
+    int rowCount(const QModelIndex & parent = QModelIndex()) const;
+    QVariant data(const QModelIndex & index, int role = Qt::DisplayRole) const;
     void clear();
+protected:
+    QHash<int, QByteArray> roleNames() const;
 private:
-    QList<Point3D> mDatas;
+    std::shared_ptr<QVector<Point3D>> m_points;
 };
 
 struct PointcloudOptions
@@ -95,6 +102,7 @@ class RealsenseWorker : public QThread, public QQuickImageProvider
     Q_PROPERTY(int width READ width NOTIFY resolutionChanged)
     Q_PROPERTY(int height READ height NOTIFY resolutionChanged)
     Q_PROPERTY(bool running READ running NOTIFY isRunningChanged)
+    Q_PROPERTY(bool paused MEMBER m_paused NOTIFY pausedChanged)
     Q_PROPERTY(PointcloudOptions pointcloudoptions READ pointcloudoptions WRITE setPointcloudoptions NOTIFY pointcloudoptionsChanged)
     Q_PROPERTY(float distanceRaw READ distanceRaw NOTIFY newFrameReady)
     Q_PROPERTY(QPointF heightPoint READ heightPoint NOTIFY newHeightPoint)
@@ -106,8 +114,8 @@ class RealsenseWorker : public QThread, public QQuickImageProvider
     Q_PROPERTY(QUrl bagFile READ bagFile WRITE setBagFile NOTIFY bagFileChanged)
     Q_PROPERTY(QUrl recordFile READ recordFile WRITE setRecordFile NOTIFY recordFileChanged)
     Q_PROPERTY(bool useBag MEMBER m_useBag NOTIFY useBagChanged)
-    Q_PROPERTY(Point3DModel points3d READ points3d NOTIFY points3dChanged)
-
+    Q_PROPERTY(Point3DList* groundPlanePoints3D READ groundPlanePoints3D CONSTANT)
+    Q_PROPERTY(Point3DList* restPoints3D READ restPoints3D CONSTANT)
 public:
     RealsenseWorker() : QQuickImageProvider(QQuickImageProvider::Image)
     {
@@ -150,7 +158,8 @@ public:
     QUrl recordFile() const;
     void setRecordFile(QUrl url);
 
-    Point3DModel points3d() const;
+    Point3DList* groundPlanePoints3D() const;
+    Point3DList* restPoints3D() const;
 
 public slots:
     void stop();
@@ -173,7 +182,7 @@ signals:
     void bagFileChanged();
     void recordFileChanged();
     void useBagChanged();
-    void points3dChanged();
+    void pausedChanged();
 
 protected:
     void run() override;
@@ -181,10 +190,12 @@ protected:
     void stopStreaming();
     pcl::PointCloud<pcl::PointXYZ>::Ptr rsDepthFrameToPCLCloud(std::unique_ptr<rs2::depth_frame> depth_frame) const;
     pcl::PointCloud<pcl::PointXYZ>::Ptr processPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr) const;
-    void projectPointsToPixmap(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud) const;
+    void projectPointsToPixmap(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud);
 
 private:
     std::shared_ptr<rs2::frameset> get_frames(unsigned int timeout = 15000U) const;
+
+    bool m_paused = false;
 
     QUrl m_bagFile;
     bool m_useBag = false;
@@ -216,7 +227,8 @@ private:
     std::chrono::milliseconds m_frameTime_ms = std::chrono::milliseconds::zero();
 
     QPointF m_heightPoint;
-    Point3DModel point3dmodel;
+    Point3DList* m_groundPlanePointsModel = new Point3DList;
+    Point3DList* m_restPointsModel = new Point3DList;
 
     std::shared_ptr<Eigen::Vector4f> groundPlaneCoefficients = std::make_shared<Eigen::Vector4f>(0, 0, 0, 0);
     std::shared_ptr<rs2_intrinsics> intrinsics = std::make_shared<rs2_intrinsics>();
