@@ -103,11 +103,12 @@ GridLayout {
         Layout.alignment: Qt.AlignHCenter
         Layout.fillWidth: true
         Layout.columnSpan: 2
-        text: "Pause"
+        text: Realsense.paused ? "Resume" : "Pause"
         Component.onCompleted: enabled = false
         onClicked: {
             Realsense.paused = !Realsense.paused
         }
+        visible: Realsense.useBag
     }
 
     CheckBox {
@@ -295,7 +296,7 @@ GridLayout {
     CheckBox {
         Layout.fillWidth: true
         text: "Paint Points"
-        checked: false
+        checked: true
         onToggled: Realsense.paintPoints = checked
         enabled: proccessPointsBox.checked
         visible: proccessPointsBox.checked

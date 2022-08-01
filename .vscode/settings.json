@@ -67,5 +67,6 @@
         "typeinfo": "cpp",
         "valarray": "cpp",
         "variant": "cpp"
-    }
+    },
+    "sonarlint.pathToCompileCommands": "${workspaceFolder}/build-debug/.qtc_clangd/compile_commands.json"
 }

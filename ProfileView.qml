@@ -36,4 +36,5 @@ Window {
             }
         }
     }
+    onClosing: profileViewLoader.source = ""
 }

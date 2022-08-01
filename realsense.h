@@ -10,7 +10,6 @@
 #include <QFile>
 #include <QAbstractItemModel>
 #include <QVector3D>
-#include <QtDataVisualization>
 
 #include <librealsense2/rs.hpp>
 
@@ -55,7 +54,7 @@ public:
 protected:
     QHash<int, QByteArray> roleNames() const;
 private:
-    std::shared_ptr<QVector<Point3D>> m_points;
+    std::shared_ptr<QVector<Point3D>> m_points = std::make_shared<QVector<Point3D>>();
 };
 
 struct PointcloudOptions
@@ -102,7 +101,7 @@ class RealsenseWorker : public QThread, public QQuickImageProvider
     Q_PROPERTY(int width READ width NOTIFY resolutionChanged)
     Q_PROPERTY(int height READ height NOTIFY resolutionChanged)
     Q_PROPERTY(bool running READ running NOTIFY isRunningChanged)
-    Q_PROPERTY(bool paused MEMBER m_paused NOTIFY pausedChanged)
+    Q_PROPERTY(bool paused READ paused WRITE setPaused NOTIFY pausedChanged)
     Q_PROPERTY(PointcloudOptions pointcloudoptions READ pointcloudoptions WRITE setPointcloudoptions NOTIFY pointcloudoptionsChanged)
     Q_PROPERTY(float distanceRaw READ distanceRaw NOTIFY newFrameReady)
     Q_PROPERTY(QPointF heightPoint READ heightPoint NOTIFY newHeightPoint)
@@ -161,6 +160,9 @@ public:
     Point3DList* groundPlanePoints3D() const;
     Point3DList* restPoints3D() const;
 
+    bool paused() const;
+    void setPaused(bool newPaused);
+
 public slots:
     void stop();
     void tare();
@@ -190,21 +192,22 @@ protected:
     void stopStreaming();
     pcl::PointCloud<pcl::PointXYZ>::Ptr rsDepthFrameToPCLCloud(std::unique_ptr<rs2::depth_frame> depth_frame) const;
     pcl::PointCloud<pcl::PointXYZ>::Ptr processPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr) const;
-    void projectPointsToPixmap(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud);
+    std::unique_ptr<QPixmap> projectPointsToPixmap(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud) const;
 
 private:
-    std::shared_ptr<rs2::frameset> get_frames(unsigned int timeout = 15000U) const;
-
     bool m_paused = false;
 
     QUrl m_bagFile;
     bool m_useBag = false;
-    std::shared_ptr<rs2::pipeline> pipe = std::make_shared<rs2::pipeline>();
-    rs2::pipeline_profile pipe_profile;
+    std::shared_ptr<rs2::pipeline> m_pipe = std::make_shared<rs2::pipeline>();
+    std::shared_ptr<rs2::device> m_device = std::make_shared<rs2::device>();
+    std::shared_ptr<rs2::frameset> m_frameset = std::make_shared<rs2::frameset>();
+    rs2::pipeline_profile m_pipe_profile;
+    std::shared_ptr<rs2::align> m_align_to_color;
     Resolution m_resolution = RES_640_480;
     int m_width;
     int m_height;
-    std::vector<std::vector<double>> intrinsic_matrix;
+    std::vector<std::vector<double>> m_intrinsic_matrix;
     bool m_isRunning = false;
     bool m_abortFlag = false;
 
@@ -214,14 +217,15 @@ private:
     QUrl m_recordFile;
     bool m_record = false;
 
-    std::shared_ptr<Eigen::Affine3f> transform_mat = std::make_shared<Eigen::Affine3f>(Eigen::Affine3f::Identity());
-    std::shared_ptr<Eigen::Affine3f> transform_mat_inv = std::make_shared<Eigen::Affine3f>(Eigen::Affine3f::Identity());
+    std::shared_ptr<Eigen::Affine3f> m_transform_mat = std::make_shared<Eigen::Affine3f>(Eigen::Affine3f::Identity());
+    std::shared_ptr<Eigen::Affine3f> m_transform_mat_inv = std::make_shared<Eigen::Affine3f>(Eigen::Affine3f::Identity());
     bool m_tared = false;
 
-    std::shared_ptr<QImage> colorImage = std::make_shared<QImage>(640, 480, QImage::Format_RGB888);
-    std::shared_ptr<QImage> depthImage = std::make_shared<QImage>(640, 480, QImage::Format_Grayscale16);
-    std::shared_ptr<QImage> infraredImage = std::make_shared<QImage>(640, 480, QImage::Format_RGB888);
-    std::shared_ptr<QPixmap> planePixmap = std::make_shared<QPixmap>();
+    std::shared_ptr<QImage> m_colorImage = std::make_shared<QImage>(640, 480, QImage::Format_RGB888);
+    std::shared_ptr<QImage> m_depthImage = std::make_shared<QImage>(640, 480, QImage::Format_Grayscale16);
+    std::shared_ptr<QImage> m_infraredImage = std::make_shared<QImage>(640, 480, QImage::Format_RGB888);
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr m_groundPlaneCloud = nullptr;
 
     std::chrono::_V2::system_clock::time_point m_lastFrameTimestamp = std::chrono::high_resolution_clock::now();
     std::chrono::milliseconds m_frameTime_ms = std::chrono::milliseconds::zero();
@@ -230,7 +234,7 @@ private:
     Point3DList* m_groundPlanePointsModel = new Point3DList;
     Point3DList* m_restPointsModel = new Point3DList;
 
-    std::shared_ptr<Eigen::Vector4f> groundPlaneCoefficients = std::make_shared<Eigen::Vector4f>(0, 0, 0, 0);
-    std::shared_ptr<rs2_intrinsics> intrinsics = std::make_shared<rs2_intrinsics>();
+    std::shared_ptr<Eigen::Vector4f> m_groundPlaneCoefficients = std::make_shared<Eigen::Vector4f>(0, 0, 0, 0);
+    std::shared_ptr<rs2_intrinsics> m_intrinsics = std::make_shared<rs2_intrinsics>();
     PointcloudOptions m_pointcloudoptions;
 };

@@ -2,14 +2,9 @@
 
 #include <librealsense2/rsutil.h>
 
-Point3D::Point3D(float newX, float newY, float newZ) : x(newX), y(newY), z(newZ)
-{
+Point3D::Point3D(float newX, float newY, float newZ) : x(newX), y(newY), z(newZ) {}
 
-}
-
-Point3DList::Point3DList(QObject *parent) : QAbstractListModel(parent)
-{
-}
+Point3DList::Point3DList(QObject *parent) : QAbstractListModel(parent) {}
 
 void Point3DList::resetPoints(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
 {
@@ -37,7 +32,8 @@ QVariant Point3DList::data(const QModelIndex &index, int role) const
 {
     if (index.row() < 0 || index.row() >= m_points->count())
         return QVariant();
-    const Point3D point = m_points->at(index.row());
+    const auto& points = *m_points;
+    const Point3D point = points[index.row()];
     if (role == xRole)
         return point.x;
     if (role == yRole)
@@ -97,6 +93,25 @@ void RealsenseWorker::setResolution(Resolution res_)
     qDebug() << "Resolution set to " << m_width << "x" << m_height;
     emit resolutionChanged();
 }
+bool RealsenseWorker::paused() const
+{
+    return m_paused;
+}
+
+void RealsenseWorker::setPaused(bool newPaused)
+{
+    if (m_paused == newPaused)
+        return;
+    m_paused = newPaused;
+
+    if (auto pb = m_device->as<rs2::playback>())
+    {
+        if (m_paused) pb.pause();
+        else pb.resume();
+    }
+
+    emit pausedChanged();
+}
 RealsenseWorker::Resolution RealsenseWorker::resolution() const
 {
     return m_resolution;
@@ -115,7 +130,7 @@ bool RealsenseWorker::running() const
 }
 float RealsenseWorker::distanceRaw() const
 {
-    return groundPlaneCoefficients->w();
+    return m_groundPlaneCoefficients->w();
 }
 QPointF RealsenseWorker::heightPoint() const
 {
@@ -172,9 +187,9 @@ void RealsenseWorker::loadExtrinsics()
 
     Matrix3f rot_matrix(r.data());
 
-    transform_mat->rotate(rot_matrix);
-    transform_mat->translation() << t.at(0), t.at(1), t.at(2);
-    transform_mat_inv = std::make_shared<Affine3f>(transform_mat->inverse());
+    m_transform_mat->rotate(rot_matrix);
+    m_transform_mat->translation() << t.at(0), t.at(1), t.at(2);
+    m_transform_mat_inv = std::make_shared<Affine3f>(m_transform_mat->inverse());
 
     m_tared = true;
     emit tareChanged(m_tared);
@@ -185,26 +200,26 @@ void RealsenseWorker::tare()
     using namespace Eigen;
     using json = nlohmann::json;
 
-    Vector3f plane_vec = groundPlaneCoefficients->head<3>();
+    Vector3f plane_vec = m_groundPlaneCoefficients->head<3>();
     Vector3f y_vector = {0.0, 1.0, 0.0};
     Vector3f rot_vector = y_vector.cross(plane_vec);
     rot_vector.normalize();
-    float dist = -groundPlaneCoefficients->w();
+    float dist = -m_groundPlaneCoefficients->w();
     float angle_cos = y_vector.dot(plane_vec);
     float angle = acos(angle_cos);
 
     Matrix3f rot_matrix;
     rot_matrix = AngleAxis(-angle, rot_vector);
 
-    transform_mat->rotate(rot_matrix);
-    transform_mat->translation() << 0.0, -dist, 0.0;
-    transform_mat_inv = std::make_shared<Affine3f>(transform_mat->inverse());
+    m_transform_mat->rotate(rot_matrix);
+    m_transform_mat->translation() << 0.0, -dist, 0.0;
+    m_transform_mat_inv = std::make_shared<Affine3f>(m_transform_mat->inverse());
 
-    groundPlaneCoefficients->w() = 0.0F;
+    m_groundPlaneCoefficients->w() = 0.0F;
 
     std::vector<float> rotateVec(rot_matrix.data(), rot_matrix.data() + rot_matrix.size());
 
-    std::vector<float> translateVec(transform_mat->translation().data(), transform_mat->translation().data() + transform_mat->translation().size());
+    std::vector<float> translateVec(m_transform_mat->translation().data(), m_transform_mat->translation().data() + m_transform_mat->translation().size());
 
     json transformJson;
     transformJson["name"] = "extrinsics";
@@ -228,7 +243,7 @@ void RealsenseWorker::tare()
 
 void RealsenseWorker::resetTare()
 {
-    *transform_mat = Eigen::Affine3f::Identity().inverse();
+    *m_transform_mat = Eigen::Affine3f::Identity().inverse();
     m_tared = false;
     emit tareChanged(m_tared);
 }
@@ -259,13 +274,13 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::rsDepthFrameToPCLCloud(std:
     return pclCloud;
 }
 
-void RealsenseWorker::projectPointsToPixmap(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud)
+std::unique_ptr<QPixmap> RealsenseWorker::projectPointsToPixmap(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud) const
 {
     if (m_tared)
     {
-        pcl::transformPointCloud(*pclCloud, *pclCloud, *transform_mat_inv);
+        pcl::transformPointCloud(*pclCloud, *pclCloud, *m_transform_mat_inv);
     }
-    auto pixmap = std::make_shared<QPixmap>(m_width, m_height);
+    auto pixmap = std::make_unique<QPixmap>(m_width, m_height);
     pixmap->fill(Qt::transparent);
     QPainter painter(pixmap.get());
     QPen pen = painter.pen();
@@ -277,11 +292,11 @@ void RealsenseWorker::projectPointsToPixmap(pcl::PointCloud<pcl::PointXYZ>::Ptr 
     {
         float pix[2];
         float p[] = {point.x, point.y, point.z};
-        const rs2_intrinsics intrin = *intrinsics;
+        const rs2_intrinsics intrin = *m_intrinsics;
         rs2_project_point_to_pixel(pix, &intrin, p);
         painter.drawPoint((int)std::round(pix[0]), (int)std::round(pix[1]));
     }
-    planePixmap = pixmap;
+    return pixmap;
 }
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr pclCloud) const
@@ -294,8 +309,8 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
     // crop PointCloud
     Eigen::Vector4f min = {m_pointcloudoptions.x_min, m_pointcloudoptions.y_min, m_pointcloudoptions.z_min, 1.0F};
     Eigen::Vector4f max = {m_pointcloudoptions.x_max, m_pointcloudoptions.y_max, m_pointcloudoptions.z_max, 1.0F};
-    min = transform_mat->matrix() * min;
-    max = transform_mat->matrix() * max;
+    min = m_transform_mat->matrix() * min;
+    max = m_transform_mat->matrix() * max;
     // reset x and y values
     min(0) = m_pointcloudoptions.x_min;
     max(0) = m_pointcloudoptions.x_max;
@@ -314,7 +329,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
     // transform point cloud to vehicle coordinates
     if (m_tared)
     {
-        pcl::transformPointCloud(*pclCloud, *pclCloud, *transform_mat);
+        pcl::transformPointCloud(*pclCloud, *pclCloud, *m_transform_mat);
     }
 
     // detect ground plane using ransac and perpendicular plane model
@@ -352,7 +367,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr RealsenseWorker::processPointcloud(pcl::Poin
         }
 
         // moving average of plane equation
-        *groundPlaneCoefficients = (Eigen::Vector4f)(groundPlaneCoefficientsRaw.head<4>() * m_pointcloudoptions.ma_alpha + *groundPlaneCoefficients * (1.0F - m_pointcloudoptions.ma_alpha));
+        *m_groundPlaneCoefficients = (Eigen::Vector4f)(groundPlaneCoefficientsRaw.head<4>() * m_pointcloudoptions.ma_alpha + *m_groundPlaneCoefficients * (1.0F - m_pointcloudoptions.ma_alpha));
     }
 
     return groundPlaneCloud;
@@ -381,7 +396,7 @@ void RealsenseWorker::startStreaming()
             auto url = m_bagFile.toString(QUrl::RemoveScheme);
             qDebug() << "Starting Stream from BAG file: " << url;
             cfg.enable_device_from_file(url.toStdString());
-            pipe_profile = pipe->start(cfg);
+            m_pipe_profile = m_pipe->start(cfg);
         }
         else
         {
@@ -401,13 +416,18 @@ void RealsenseWorker::startStreaming()
                 cfg.enable_record_to_file(ss.str());
             }
 
-            pipe_profile = pipe->start(cfg);
-            auto sensor = pipe_profile.get_device().first<rs2::depth_sensor>();
-            qDebug() << "Connecting to " << pipe_profile.get_device().get_info(RS2_CAMERA_INFO_NAME);
+            m_pipe_profile = m_pipe->start(cfg);
+            auto sensor = m_pipe_profile.get_device().first<rs2::depth_sensor>();
+            qDebug() << "Connecting to " << m_pipe_profile.get_device().get_info(RS2_CAMERA_INFO_NAME);
             // sensor.set_option(RS2_OPTION_VISUAL_PRESET, RS2_RS400_VISUAL_PRESET_HIGH_ACCURACY);
         }
-        auto depth_stream = pipe_profile.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
-        *intrinsics = depth_stream.get_intrinsics();
+
+        m_device = std::make_shared<rs2::device>(m_pipe->get_active_profile().get_device());
+
+        auto depth_stream = m_pipe_profile.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
+        *m_intrinsics = depth_stream.get_intrinsics();
+
+        m_align_to_color = std::make_shared<rs2::align>(RS2_STREAM_COLOR);
 
         m_isRunning = true;
         m_abortFlag = false;
@@ -427,20 +447,14 @@ void RealsenseWorker::startStreaming()
 
 void RealsenseWorker::stopStreaming()
 {
-    pipe->stop();
-    pipe = std::make_shared<rs2::pipeline>();
+    m_pipe->stop();
+    m_pipe = std::make_shared<rs2::pipeline>();
     qDebug() << "Realsense stopped";
     m_isRunning = false;
-    colorImage = std::make_shared<QImage>(640, 480, QImage::Format_RGB888);
-    depthImage = std::make_shared<QImage>(640, 480, QImage::Format_Grayscale16);
-    infraredImage = std::make_shared<QImage>(640, 480, QImage::Format_RGB888);
+    m_colorImage = std::make_shared<QImage>(640, 480, QImage::Format_RGB888);
+    m_depthImage = std::make_shared<QImage>(640, 480, QImage::Format_Grayscale16);
+    m_infraredImage = std::make_shared<QImage>(640, 480, QImage::Format_RGB888);
     emit isRunningChanged();
-}
-
-std::shared_ptr<rs2::frameset> RealsenseWorker::get_frames(unsigned int timeout) const
-{
-    auto frames = pipe->wait_for_frames(timeout);
-    return std::make_shared<rs2::frameset>(frames);
 }
 
 uchar *convert_yuyv_to_rgb(const uchar *yuyv_image, int width, int height) // https://stackoverflow.com/questions/9098881/convert-from-yuv-to-rgb-in-c-android-ndk
@@ -522,80 +536,92 @@ try
 
     while (!m_abortFlag)
     {
-        if (!m_paused)
+        if (m_device->as<rs2::playback>())
         {
-            auto frames = get_frames();
-            if (*frames)
+            if (!m_paused)
             {
-                auto color_frame = frames->get_color_frame();
-                auto depth_frame = frames->get_depth_frame();
-                auto ir_frame = frames->get_infrared_frame(1);
-
-                m_width = color_frame.get_width();
-                m_height = color_frame.get_height();
-
-                // make QImages from Color and Depth frames
-                if (color_frame.get_profile().format() == RS2_FORMAT_RGB8)
+                rs2::frameset frameset;
+                bool s = m_pipe->poll_for_frames(&frameset);
+                if (!s)
                 {
-                    *colorImage = QImage((uchar *)color_frame.get_data(), m_width, m_height, m_width * 3, QImage::Format_RGB888);
+                    m_frameset.reset();
                 }
-                else if (color_frame.get_profile().format() == RS2_FORMAT_YUYV)
-                {
-                    *colorImage = QImage(convert_yuyv_to_rgb((uchar *)color_frame.get_data(), m_width, m_height), m_width, m_height, m_width * 3, QImage::Format_RGB888);
-                }
-                else
-                {
-                    qDebug() << "Wrong format for color frame!";
-                }
-                if (depth_frame.get_profile().format() == RS2_FORMAT_Z16)
-                {
-                    *depthImage = QImage((uchar *)depth_frame.get_data(), m_width, m_height, m_width * 2, QImage::Format_Grayscale16);
-                }
-                else
-                {
-                    qDebug() << "Wrong format for depth frame!";
-                }
-                if (ir_frame)
-                {
-                    if (ir_frame.get_profile().format() == RS2_FORMAT_Y8)
-                    {
-                        *infraredImage = QImage((uchar *)ir_frame.get_data(), m_width, m_height, m_width, QImage::Format_Grayscale8);
-                    }
-                }
-
-                // Point Cloud Processing
-                if (m_processPoints)
-                {
-                    auto pclCloud = rsDepthFrameToPCLCloud(std::make_unique<rs2::depth_frame>(depth_frame));
-                    auto groundPlaneCloud = processPointcloud(pclCloud);
-                    if (m_paintPoints)
-                    {
-                        projectPointsToPixmap(groundPlaneCloud);
-                    }
-                }
-                emit newFrameReady();
-
-                emit newHeight(groundPlaneCoefficients->w());
-
-                // calculate frame time
-                auto time_now = std::chrono::high_resolution_clock::now();
-                m_frameTime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - m_lastFrameTimestamp);
-                emit frameTimeChanged();
-                m_lastFrameTimestamp = time_now;
-
-                auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - start_time);
-                long timestamp = now_ms.count();
-                m_heightPoint.setX((qreal)timestamp);
-                m_heightPoint.setY(groundPlaneCoefficients->w());
-                emit newHeightPoint();
+                else m_frameset = std::make_shared<rs2::frameset>(frameset);
             }
         }
+        else
+        {
+            m_frameset = std::make_shared<rs2::frameset>(m_pipe->wait_for_frames());
+        }
+        if (m_frameset)
+        {
+            *m_frameset = m_align_to_color->process(*m_frameset);
+            auto color_frame = m_frameset->get_color_frame();
+            auto depth_frame = m_frameset->get_depth_frame();
+            auto ir_frame = m_frameset->get_infrared_frame(1);
+
+            m_width = color_frame.get_width();
+            m_height = color_frame.get_height();
+
+            // make QImages from Color and Depth frames
+            if (color_frame.get_profile().format() == RS2_FORMAT_RGB8)
+            {
+                *m_colorImage = QImage((uchar *)color_frame.get_data(), m_width, m_height, m_width * 3, QImage::Format_RGB888);
+            }
+            else if (color_frame.get_profile().format() == RS2_FORMAT_YUYV)
+            {
+                *m_colorImage = QImage(convert_yuyv_to_rgb((uchar *)color_frame.get_data(), m_width, m_height), m_width, m_height, m_width * 3, QImage::Format_RGB888);
+            }
+            else
+            {
+                qDebug() << "Wrong format for color frame!";
+            }
+            if (depth_frame.get_profile().format() == RS2_FORMAT_Z16)
+            {
+                *m_depthImage = QImage((uchar *)depth_frame.get_data(), m_width, m_height, m_width * 2, QImage::Format_Grayscale16);
+            }
+            else
+            {
+                qDebug() << "Wrong format for depth frame!";
+            }
+            if (ir_frame)
+            {
+                if (ir_frame.get_profile().format() == RS2_FORMAT_Y8)
+                {
+                    *m_infraredImage = QImage((uchar *)ir_frame.get_data(), m_width, m_height, m_width, QImage::Format_Grayscale8);
+                }
+            }
+
+            // Point Cloud Processing
+            if (m_processPoints)
+            {
+                auto pclCloud = rsDepthFrameToPCLCloud(std::make_unique<rs2::depth_frame>(depth_frame));
+                m_groundPlaneCloud = processPointcloud(pclCloud);
+            }
+            emit newFrameReady();
+
+            emit newHeight(m_groundPlaneCoefficients->w());
+
+            // calculate frame time
+            auto time_now = std::chrono::high_resolution_clock::now();
+            m_frameTime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - m_lastFrameTimestamp);
+            emit frameTimeChanged();
+            m_lastFrameTimestamp = time_now;
+
+            auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - start_time);
+            long timestamp = now_ms.count();
+            m_heightPoint.setX((qreal)timestamp);
+            m_heightPoint.setY(m_groundPlaneCoefficients->w());
+            emit newHeightPoint();
+        }
+        m_frameset.reset();
     }
     stopStreaming();
 }
 catch (const rs2::error &e)
 {
     std::cerr << "Realsense error calling " << e.get_failed_function() << "(" << e.get_failed_args() << "):\n   " << e.what() << std::endl;
+    stopStreaming();
 }
 
 // QQuickImageProvider function
@@ -607,19 +633,19 @@ QImage RealsenseWorker::requestImage(const QString &id, QSize *size, const QSize
     if (size)
         *size = QSize(m_width, m_height);
 
-    auto im = colorImage;
+    auto im = m_colorImage;
 
     if (id_ == "depth")
-        im = depthImage;
+        im = m_depthImage;
     else if (id_ == "infrared")
-        im = infraredImage;
+        im = m_infraredImage;
 
     if (m_processPoints && m_paintPoints)
     {
-        QPixmap pm = QPixmap(*planePixmap);
+        auto pm = projectPointsToPixmap(m_groundPlaneCloud);
         QImage img(*im);
         QPainter p(&img);
-        p.drawPixmap(0, 0, pm);
+        p.drawPixmap(0, 0, *pm);
         return img;
     }
     return *im;
