@@ -81,6 +81,7 @@ ApplicationWindow {
         nameFilters: ["BAG Files (*.bag)", "All Files (*)"]
         onAccepted: {
             Realsense.bagFile = filePicker.fileUrl
+            RealsenseDeviceList.bagFile_url = filePicker.fileUrl
             close()
         }
         onRejected: {

@@ -3,6 +3,7 @@
 #include <QQmlContext>
 
 #include "realsense.h"
+#include "rs.hpp"
 #include "can.h"
 #include "headercontrol.h"
 
@@ -35,6 +36,11 @@ int main(int argc, char *argv[])
 
     auto headercontrol = new Headercontrol;
     engine.rootContext()->setContextProperty("Headercontrol", headercontrol);
+
+    auto realsenseDeviceList = new RealsenseDeviceList;
+    engine.rootContext()->setContextProperty("RealsenseDeviceList", realsenseDeviceList);
+
+    engine.rootContext()->setContextProperty("RealsenseDataProvider", realsenseDeviceList->realsenseDataProvider());
 
     QObject::connect(realsenseWorker, &RealsenseWorker::newHeight, headercontrol, &Headercontrol::updateHeight);
     QObject::connect(headercontrol, &Headercontrol::sendCanMessage, canBus, &CAN::sendCANMessage);

@@ -386,8 +386,31 @@ void printOptions(rs2::sensor sensor, std::vector<rs2_option> options)
         }
 }
 
+void RealsenseWorker::calculateYpr(std::unique_ptr<rs2::motion_frame> motion)
+{
+    qDebug() << "Calculating YPR";
+    if (motion && motion->get_profile().stream_type() == RS2_STREAM_GYRO &&
+        motion->get_profile().format() == RS2_FORMAT_MOTION_XYZ32F)
+    {
+        auto acc_data = motion->get_motion_data();
+        qDebug() << acc_data.x;
+    }
+}
+
 void RealsenseWorker::startStreaming()
 {
+    m_align_to_color = std::make_shared<rs2::align>(RS2_STREAM_COLOR);
+    auto callback_playback = [&](const rs2::frame& frame)
+    {
+        if (auto motion_frame = frame.as<rs2::motion_frame>())
+        {
+            this->m_motion_frame = std::make_shared<rs2::motion_frame>(motion_frame);
+        }
+        if (auto frameset = frame.as<rs2::frameset>())
+        {
+            this->m_frameset = std::make_shared<rs2::frameset>(frameset);
+        }
+    };
     try
     {
         rs2::config cfg;
@@ -396,7 +419,7 @@ void RealsenseWorker::startStreaming()
             auto url = m_bagFile.toString(QUrl::RemoveScheme);
             qDebug() << "Starting Stream from BAG file: " << url;
             cfg.enable_device_from_file(url.toStdString());
-            m_pipe_profile = m_pipe->start(cfg);
+            m_pipe_profile = m_pipe->start(cfg, callback_playback);
         }
         else
         {
@@ -404,6 +427,8 @@ void RealsenseWorker::startStreaming()
             cfg.enable_stream(RS2_STREAM_DEPTH, m_width, m_height, RS2_FORMAT_Z16, 30);
             cfg.enable_stream(RS2_STREAM_COLOR, m_width, m_height, RS2_FORMAT_YUYV, 30);
             cfg.enable_stream(RS2_STREAM_INFRARED, 1, m_width, m_height, RS2_FORMAT_Y8, 30);
+            cfg.enable_stream(RS2_STREAM_ACCEL, RS2_FORMAT_MOTION_XYZ32F);
+            cfg.enable_stream(RS2_STREAM_GYRO, RS2_FORMAT_MOTION_XYZ32F);
 
             if (m_record)
             {
@@ -416,7 +441,7 @@ void RealsenseWorker::startStreaming()
                 cfg.enable_record_to_file(ss.str());
             }
 
-            m_pipe_profile = m_pipe->start(cfg);
+            m_pipe_profile = m_pipe->start(cfg, callback_playback);
             auto sensor = m_pipe_profile.get_device().first<rs2::depth_sensor>();
             qDebug() << "Connecting to " << m_pipe_profile.get_device().get_info(RS2_CAMERA_INFO_NAME);
             // sensor.set_option(RS2_OPTION_VISUAL_PRESET, RS2_RS400_VISUAL_PRESET_HIGH_ACCURACY);
@@ -426,8 +451,6 @@ void RealsenseWorker::startStreaming()
 
         auto depth_stream = m_pipe_profile.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
         *m_intrinsics = depth_stream.get_intrinsics();
-
-        m_align_to_color = std::make_shared<rs2::align>(RS2_STREAM_COLOR);
 
         m_isRunning = true;
         m_abortFlag = false;
@@ -536,32 +559,17 @@ try
 
     while (!m_abortFlag)
     {
-        if (m_device->as<rs2::playback>())
-        {
-            if (!m_paused)
-            {
-                rs2::frameset frameset;
-                bool s = m_pipe->poll_for_frames(&frameset);
-                if (!s)
-                {
-                    m_frameset.reset();
-                }
-                else m_frameset = std::make_shared<rs2::frameset>(frameset);
-            }
-        }
-        else
-        {
-            m_frameset = std::make_shared<rs2::frameset>(m_pipe->wait_for_frames());
-        }
         if (m_frameset)
         {
-            *m_frameset = m_align_to_color->process(*m_frameset);
             auto color_frame = m_frameset->get_color_frame();
             auto depth_frame = m_frameset->get_depth_frame();
             auto ir_frame = m_frameset->get_infrared_frame(1);
 
-            m_width = color_frame.get_width();
-            m_height = color_frame.get_height();
+            if (color_frame)
+            {
+                m_width = color_frame.get_width();
+                m_height = color_frame.get_height();
+            }
 
             // make QImages from Color and Depth frames
             if (color_frame.get_profile().format() == RS2_FORMAT_RGB8)
@@ -615,6 +623,7 @@ try
             emit newHeightPoint();
         }
         m_frameset.reset();
+        m_motion_frame.reset();
     }
     stopStreaming();
 }

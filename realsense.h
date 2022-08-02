@@ -201,7 +201,6 @@ private:
     bool m_useBag = false;
     std::shared_ptr<rs2::pipeline> m_pipe = std::make_shared<rs2::pipeline>();
     std::shared_ptr<rs2::device> m_device = std::make_shared<rs2::device>();
-    std::shared_ptr<rs2::frameset> m_frameset = std::make_shared<rs2::frameset>();
     rs2::pipeline_profile m_pipe_profile;
     std::shared_ptr<rs2::align> m_align_to_color;
     Resolution m_resolution = RES_640_480;
@@ -210,6 +209,14 @@ private:
     std::vector<std::vector<double>> m_intrinsic_matrix;
     bool m_isRunning = false;
     bool m_abortFlag = false;
+
+    std::shared_ptr<rs2::frameset> m_frameset;
+    std::shared_ptr<rs2::motion_frame> m_motion_frame;
+
+    float yaw;
+    float pitch;
+    float roll;
+    void calculateYpr(std::unique_ptr<rs2::motion_frame> motion);
 
     bool m_processPoints = false;
     bool m_paintPoints = true;

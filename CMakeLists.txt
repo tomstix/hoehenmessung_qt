@@ -29,7 +29,8 @@ add_definitions(${PCL_DEFINITIONS})
 set(PROJECT_SOURCES
         main.cpp
         qml.qrc
-        realsense.h realsense.cpp
+        realsense.cpp realsense.h
+        rs.hpp rs.cpp
         can.h can.cpp
         headercontrol.h headercontrol.cpp
 )

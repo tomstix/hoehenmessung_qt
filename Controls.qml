@@ -33,50 +33,41 @@ GridLayout {
     id: controlLayout
     columns: 2
     ComboBox {
-        id: resolutionSelector
+        id: deviceSelector
+        Layout.columnSpan: 2
+        Layout.fillWidth: true
+        model: RealsenseDeviceList
+        textRole: "NAME"
+        Connections {
+            target: filePicker
+            function onAccepted() {
+                deviceSelector.currentIndex = RealsenseDeviceList.rowCount()-1
+            }
+        }
+        onCurrentIndexChanged: RealsenseDeviceList.set_device(deviceSelector.currentIndex)
+    }
+    Label {
+        text: "Color Resolution"
+    }
+    Label {
+        text: "Depth Resolution"
+    }
+    ComboBox {
+        id: colorResolutionSelector
         Layout.alignment: Qt.AlignHCenter
         Layout.fillWidth: true
-        Layout.columnSpan: 2
-        currentIndex: 3
-        model: ListModel {
-            ListElement {
-                text: "424x240"
-            }
-            ListElement {
-                text: "480x270"
-            }
-            ListElement {
-                text: "640x360"
-            }
-            ListElement {
-                text: "640x480"
-            }
-            ListElement {
-                text: "1280x720"
-            }
-            ListElement {
-                text: "BAG File"
-            }
-        }
-        Component.onCompleted: Realsense.resolution = currentIndex
-        onCurrentIndexChanged: {
-            if (currentIndex < 5)
-            {
-                Realsense.useBag = false
-                Realsense.resolution = currentIndex
-            }
-            else if (Realsense.bagFile.toString() != "")
-            {
-                Realsense.useBag = true
-                console.log("Using BAG File: " + Realsense.bagFile)
-            }
-            else
-            {
-                console.error("Choose BAG File first! Current file: " + Realsense.bagFile)
-                currentIndex = 3
-            }
-        }
+        visible: !RealsenseDeviceList.use_bag
+        model: RealsenseDeviceList.color_resolutions
+        onCurrentTextChanged: RealsenseDeviceList.set_color_resolution(currentText)
     }
+    ComboBox {
+        id: depthResolutionSelector
+        Layout.fillWidth: true
+        visible: !RealsenseDeviceList.use_bag
+        model: RealsenseDeviceList.depth_resolutions
+        onCurrentTextChanged: RealsenseDeviceList.set_depth_resolution(currentText)
+    }
+
     Button {
         id: startButton
         Layout.alignment: Qt.AlignHCenter
@@ -343,5 +334,12 @@ GridLayout {
         Layout.fillWidth: true
         Layout.columnSpan: 2
         visible: proccessPointsBox.checked
+    }
+    ArtificialHorizon {
+        Layout.fillWidth: true
+        Layout.preferredHeight: 200
+        Layout.columnSpan: 2
+        pitchAngle: 4.2
+        rollAngle: 23
     }
 }

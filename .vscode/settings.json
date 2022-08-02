@@ -68,5 +68,9 @@
         "valarray": "cpp",
         "variant": "cpp"
     },
-    "sonarlint.pathToCompileCommands": "${workspaceFolder}/build-debug/.qtc_clangd/compile_commands.json"
+    "sonarlint.pathToCompileCommands": "${workspaceFolder}/build-debug/.qtc_clangd/compile_commands.json",
+    "cmake.environment": {
+        "CMAKE_PREFIX_PATH" : "/home/tom/Qt/5.15.2/gcc_64/lib/cmake",
+        "CMAKE_GENERATOR" : "Ninja"
+    }
 }
