@@ -261,7 +261,6 @@ QImage RealsenseImageProvider::requestImage(const QString &id, QSize *size, cons
 void RealsenseImageProvider::set_color_image(QSharedPointer<QImage> color_image)
 {
     qDebug() << "Image Provider received new Frameset";
-    m_frameset = frameset;
 }
 
 void RealsenseImageProvider::set_color_intrinsics(QSharedPointer<rs2_intrinsics> color_intrinsics)
