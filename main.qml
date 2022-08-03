@@ -136,13 +136,13 @@ ApplicationWindow {
         Image {
             id: image
             Layout.column: 1
-            property string src: "image://realsense/color/"
+            property string src: "image://RealsenseImageProvider/color/"
             source: src + 0
             fillMode: Image.PreserveAspectFit
             Connections {
-                target: Realsense
+                target: RealsenseManager
                 property int counter: 0
-                function onNewFrameReady()
+                function onFrameReady()
                 {
                     image.source = image.src + counter
                     counter = !counter

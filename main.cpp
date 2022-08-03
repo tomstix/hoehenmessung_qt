@@ -28,7 +28,6 @@ int main(int argc, char *argv[])
         Qt::QueuedConnection);
 
     auto realsenseWorker = new RealsenseWorker;
-    engine.addImageProvider("realsense", realsenseWorker);
     engine.rootContext()->setContextProperty("Realsense", realsenseWorker);
 
     auto canBus = new CAN;
@@ -37,10 +36,10 @@ int main(int argc, char *argv[])
     auto headercontrol = new Headercontrol;
     engine.rootContext()->setContextProperty("Headercontrol", headercontrol);
 
-    auto realsenseDeviceList = new RealsenseDeviceList;
-    engine.rootContext()->setContextProperty("RealsenseDeviceList", realsenseDeviceList);
-
-    engine.rootContext()->setContextProperty("RealsenseDataProvider", realsenseDeviceList->realsenseDataProvider());
+    auto realsenseManager = new RealsenseManager;
+    engine.rootContext()->setContextProperty("RealsenseManager", realsenseManager);
+    engine.rootContext()->setContextProperty("RealsenseDeviceList", realsenseManager->realsenseDeviceList);
+    engine.addImageProvider("RealsenseImageProvider", realsenseManager->realsenseImageProvider);
 
     QObject::connect(realsenseWorker, &RealsenseWorker::newHeight, headercontrol, &Headercontrol::updateHeight);
     QObject::connect(headercontrol, &Headercontrol::sendCanMessage, canBus, &CAN::sendCANMessage);

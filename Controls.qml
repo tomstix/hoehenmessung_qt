@@ -58,14 +58,14 @@ GridLayout {
         Layout.fillWidth: true
         visible: !RealsenseDeviceList.use_bag
         model: RealsenseDeviceList.color_resolutions
-        onCurrentTextChanged: RealsenseDeviceList.set_color_resolution(currentText)
+        //onCurrentTextChanged: RealsenseDeviceList.set_color_resolution(currentText)
     }
     ComboBox {
         id: depthResolutionSelector
         Layout.fillWidth: true
         visible: !RealsenseDeviceList.use_bag
         model: RealsenseDeviceList.depth_resolutions
-        onCurrentTextChanged: RealsenseDeviceList.set_depth_resolution(currentText)
+        //onCurrentTextChanged: RealsenseDeviceList.set_depth_resolution(currentText)
     }
 
     Button {
@@ -75,7 +75,8 @@ GridLayout {
         Layout.preferredWidth: parent.width / 2
         text: "Start"
         onClicked: {
-            Realsense.start()
+            //Realsense.start()
+            RealsenseManager.start(deviceSelector.currentIndex, colorResolutionSelector.currentText, depthResolutionSelector.currentText)
         }
     }
     Button {
@@ -85,7 +86,7 @@ GridLayout {
         Layout.preferredWidth: parent.width / 2
         text: "Stop"
         onClicked: {
-            Realsense.stop()
+            //Realsense.stop()
         }
         Component.onCompleted: enabled = false
     }
